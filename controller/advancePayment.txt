@@ -1,0 +1,31 @@
+exports.addAdvancePayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount } = req.body;
+
+    if (!amount) {
+      throw new Error("Amount is required");
+    }
+
+    const lead = await LEAD.findById(id);
+    if (!lead) throw new Error("Lead not found");
+
+    if (!lead.advancePayments) {
+      lead.advancePayments = [];
+    }
+
+    lead.advancePayments.push({ amount });
+    await lead.save();
+
+    return res.status(200).json({
+      status: "Success",
+      message: "Advance payment added successfully",
+      data: lead,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      status: "Fail",
+      message: error.message,
+    });
+  }
+};
