@@ -77,8 +77,14 @@ exports.handleWebhook = async (req, res) => {
           const leadId = change.value.leadgen_id;
           console.log("Received New Facebook Lead ID:", leadId);
 
+          if (!process.env.META_ACCESS_TOKEN) {
+            console.error("❌ META_ACCESS_TOKEN is missing in .env! Cannot fetch lead details.");
+            return;
+          }
+
           try {
             // Fetch the actual lead data using the Page Access Token
+            console.log("Fetching lead details from Meta for ID:", leadId);
             const response = await axios.get(
               `https://graph.facebook.com/v21.0/${leadId}`,
               {
@@ -88,25 +94,37 @@ exports.handleWebhook = async (req, res) => {
               }
             );
 
-            const metaLead = response.data;
-            const accountData = mapMetaFields(metaLead.field_data);
+            console.log("Meta API Response Data:", JSON.stringify(response.data, null, 2));
 
-            console.log("Processed Lead Data:", accountData);
+            const metaLead = response.data;
+            if (!metaLead.field_data) {
+              console.log("No field_data found in Meta lead!");
+              return;
+            }
+
+            const accountData = mapMetaFields(metaLead.field_data);
+            console.log("Mapped Account Data for DB:", accountData);
 
             // Avoid duplicates by checking mobile number
+            if (!accountData.mobile) {
+              console.log("Skipping record creation: No mobile number found in lead.");
+              return;
+            }
+
             const existingAccount = await ACCOUNTMASTER.findOne({
               mobile: accountData.mobile,
               isDeleted: false
             });
 
             if (!existingAccount) {
+              console.log("Creating new Account Master record...");
               const newAccount = await ACCOUNTMASTER.create(accountData);
-              console.log("Successfully added Meta Lead to Account Master:", newAccount._id);
+              console.log("✅ Successfully added Meta Lead to Account Master. ID:", newAccount._id);
             } else {
-              console.log("Account already exists for this mobile number, skipping.");
+              console.log("⚠️ Account already exists for mobile:", accountData.mobile, "- skipping creation.");
             }
           } catch (error) {
-            console.error("Error fetching lead from Meta API:", error.response ? error.response.data : error.message);
+            console.error("❌ Error processing lead:", error.response ? error.response.data : error.message);
           }
         }
       }
