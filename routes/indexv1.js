@@ -14,5 +14,6 @@ router.use("/accountmaster", require("./accountMaster"));
 router.use("/lead", require("./lead"));
 router.use("/report", require("./report"));
 router.use("/production", require("./production"));
+router.use("/meta", require("./meta"));
 
 module.exports = router;
