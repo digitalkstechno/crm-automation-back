@@ -73,20 +73,16 @@ exports.handleWebhook = async (req, res) => {
   if (body.object === "page") {
     for (const entry of body.entry) {
       for (const change of entry.changes) {
+
         if (change.field === "leadgen") {
+
           const leadId = change.value.leadgen_id;
           console.log("Received New Facebook Lead ID:", leadId);
 
-          if (!process.env.META_ACCESS_TOKEN) {
-            console.error("❌ META_ACCESS_TOKEN is missing in .env! Cannot fetch lead details.");
-            return;
-          }
-
           try {
-            // Fetch the actual lead data using the Page Access Token
-            console.log("Fetching lead details from Meta for ID:", leadId);
+
             const response = await axios.get(
-              `https://graph.facebook.com/v21.0/${leadId}`,
+              `https://graph.facebook.com/v25.0/${leadId}`,
               {
                 params: {
                   access_token: process.env.META_ACCESS_TOKEN
@@ -94,43 +90,65 @@ exports.handleWebhook = async (req, res) => {
               }
             );
 
-            console.log("Meta API Response Data:", JSON.stringify(response.data, null, 2));
-
             const metaLead = response.data;
-            if (!metaLead.field_data) {
-              console.log("No field_data found in Meta lead!");
-              return;
-            }
 
-            const accountData = mapMetaFields(metaLead.field_data);
-            console.log("Mapped Account Data for DB:", accountData);
+            console.log("Meta Lead Data:", metaLead);
 
-            // Avoid duplicates by checking mobile number
+            const accountData = mapMetaFields(metaLead.field_data || []);
+
+            // Add extra meta fields
+            accountData.metaLeadId = leadId;
+            accountData.source = "facebook";
+            accountData.metaRawData = metaLead; // store full response for debugging
+
+            // Temporary fallback values
             if (!accountData.mobile) {
-              console.log("Skipping record creation: No mobile number found in lead.");
-              return;
+              accountData.mobile = "TEMP_" + Date.now();
             }
 
-            const existingAccount = await ACCOUNTMASTER.findOne({
-              mobile: accountData.mobile,
-              isDeleted: false
+            if (!accountData.clientName) {
+              accountData.clientName = "Facebook Lead";
+            }
+
+            if (!accountData.companyName) {
+              accountData.companyName = "Facebook Lead";
+            }
+
+            // Avoid duplicate using leadId
+            const existingLead = await ACCOUNTMASTER.findOne({
+              metaLeadId: leadId
             });
 
-            if (!existingAccount) {
-              console.log("Creating new Account Master record...");
+            if (!existingLead) {
+
               const newAccount = await ACCOUNTMASTER.create(accountData);
-              console.log("✅ Successfully added Meta Lead to Account Master. ID:", newAccount._id);
+
+              console.log("✅ Meta Lead Saved:", newAccount._id);
+
             } else {
-              console.log("⚠️ Account already exists for mobile:", accountData.mobile, "- skipping creation.");
+
+              console.log("⚠️ Lead already exists:", leadId);
+
             }
+
           } catch (error) {
-            console.error("❌ Error processing lead:", error.response ? error.response.data : error.message);
+
+            console.error(
+              "❌ Error fetching lead:",
+              error.response ? error.response.data : error.message
+            );
+
           }
+
         }
+
       }
     }
+
     return res.status(200).send("EVENT_RECEIVED");
   }
+
+  res.sendStatus(404);
 };
 
 // GET /v1/api/meta/ping - Simple test to check if the route is reachable
