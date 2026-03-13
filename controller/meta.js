@@ -130,7 +130,17 @@ exports.handleWebhook = async (req, res) => {
       }
     }
     return res.status(200).send("EVENT_RECEIVED");
-  } else {
-    return res.sendStatus(404);
   }
+};
+
+// GET /v1/api/meta/ping - Simple test to check if the route is reachable
+exports.pingTest = (req, res) => {
+  res.status(200).json({
+    status: "Success",
+    message: "Meta integration route is working correctly!",
+    env_check: {
+      verify_token_set: !!process.env.META_VERIFY_TOKEN,
+      access_token_set: !!process.env.META_ACCESS_TOKEN
+    }
+  });
 };

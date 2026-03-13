@@ -13,4 +13,7 @@ router.get("/webhook", metaController.verifyWebhook);
 // Webhook Event Handler (Where Meta sends lead data)
 router.post("/webhook", metaController.handleWebhook);
 
+// Ping Test (To verify route accessibility)
+router.get("/ping", metaController.pingTest);
+
 module.exports = router;
