@@ -68,6 +68,7 @@ exports.verifyWebhook = (req, res) => {
 
 // POST /v1/api/meta/webhook - Handling lead notifications
 exports.handleWebhook = async (req, res) => {
+  console.log("WEBHOOK BODY:", JSON.stringify(req.body, null, 2));
   const body = req.body;
 
   if (body.object === "page") {
