@@ -1,5 +1,5 @@
 const axios = require("axios");
-const ACCOUNTMASTER = require("../model/accountMaster");
+const Lead = require("../model/lead");
 
 /**
  * Maps Meta lead field data to our AccountMaster schema
@@ -116,13 +116,13 @@ exports.handleWebhook = async (req, res) => {
             }
 
             // Avoid duplicate using leadId
-            const existingLead = await ACCOUNTMASTER.findOne({
+            const existingLead = await Lead.findOne({
               metaLeadId: leadId
             });
 
             if (!existingLead) {
 
-              const newAccount = await ACCOUNTMASTER.create(accountData);
+              const newAccount = await Lead.create(accountData);
 
               console.log("✅ Meta Lead Saved:", newAccount._id);
 

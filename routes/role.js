@@ -1,13 +1,29 @@
-const express = require("express");
-const router = express.Router();
-const roleController = require("../controller/role");
-const auth = require("../middleware/auth");
+var express = require("express");
+var router = express.Router();
+let {
+  createRole,
+  fetchAllRoles,
+  fetchRoleById,
+  roleUpdate,
+  roleDelete
+} = require("../controller/role");
+let authMiddleware = require("../middleware/auth");
+const { authorize } = require("../middleware/permissions");
 
-router.post("/create",  roleController.createRole);
-router.get("/fetch-all", auth, roleController.fetchAllRoles);
-router.get("/fetch/:id", auth, roleController.fetchRoleById);
-router.put("/update/:id", auth, roleController.updateRole);
-router.delete("/delete/:id", auth, roleController.deleteRole);
-router.get("/statuses", auth, roleController.getAllStatuses);
+router.post("/", authMiddleware, authorize("setup", "create"), createRole);
+router.get("/", authMiddleware, authorize("setup", "readAll"), fetchAllRoles);
+router.get(
+  "/:id",
+  authMiddleware,
+  authorize("setup", "readAll"),
+  fetchRoleById,
+);
+router.put("/:id", authMiddleware, authorize("setup", "update"), roleUpdate);
+router.delete(
+  "/:id",
+  authMiddleware,
+  authorize("setup", "delete"),
+  roleDelete,
+);
 
 module.exports = router;

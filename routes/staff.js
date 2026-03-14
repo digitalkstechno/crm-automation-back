@@ -1,26 +1,45 @@
 var express = require("express");
 var router = express.Router();
+const createUploader = require("../utils/multer");
+const upload = createUploader("images/StaffProfileImages");
 let {
   createStaff,
   loginStaff,
-  refreshToken,
   fetchAllStaffs,
-  fetchAllStaffsForDropdown,
   fetchStaffById,
   staffUpdate,
   staffDelete,
-  getCurrentUser,
+  getCurrentStaff,
 } = require("../controller/staff");
 const authMiddleware = require("../middleware/auth");
+const { authorize } = require("../middleware/permissions");
 
-router.post("/", createStaff);
+router.post("/create", upload.single("profileImage"), createStaff);
 router.post("/login", loginStaff);
-router.post("/refresh-token", refreshToken);
-router.get("/me", authMiddleware, getCurrentUser);
-router.get("/", authMiddleware, fetchAllStaffs);
-router.get("/dropdown", authMiddleware, fetchAllStaffsForDropdown);
-router.get("/:id", authMiddleware, fetchStaffById);
-router.put("/:id", authMiddleware, staffUpdate);
-router.delete("/:id", authMiddleware, staffDelete);
-
+router.get("/me", authMiddleware, getCurrentStaff);
+router.get(
+  "/",
+  authMiddleware,
+  authorize("setup", "readAll"),
+  fetchAllStaffs,
+);
+router.get(
+  "/:id",
+  authMiddleware,
+  authorize("setup", "readAll"),
+  fetchStaffById,
+);
+router.put(
+  "/:id",
+  upload.single("profileImage"),
+  authMiddleware,
+  authorize("setup", "update"),
+  staffUpdate,
+);
+router.delete(
+  "/:id",
+  authMiddleware,
+  authorize("setup", "delete"),
+  staffDelete,
+);
 module.exports = router;

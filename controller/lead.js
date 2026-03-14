@@ -1,101 +1,22 @@
 const LEAD = require("../model/lead");
-const { validatePositiveNumber, validateRequiredField } = require("../utils/validation");
-
-/* =========================
-   CREATE LEAD
-========================= */
-
+const { deleteUploadedFile } = require("../utils/fileHelper");
+const { incrementCount, decrementCount } = require("../utils/leadCountHelper");
+const LeadStatus = require("../model/leadStatus");
 exports.createLead = async (req, res) => {
   try {
-    const {
-      leadDate,
-      clientType,
-      deliveryDate,
-      shippingCharges,
-      budget,
-      accountMaster,
-      leadStatus,
-      items,
-      remarks,
-      paymentHistory,
-      totalAmount,
-    } = req.body;
+    const leadData = req.body;
 
-    // Validation
-    if (!validateRequiredField(leadDate)) {
-      throw new Error("Lead date is required");
-    }
-    /* if (!validateRequiredField(clientType)) {
-      throw new Error("Client type is required");
-    } */
-    if (!validateRequiredField(accountMaster)) {
-      throw new Error("Account master is required");
-    }
-    if (!items || items.length === 0) {
-      throw new Error("At least one item is required");
-    }
-    if (shippingCharges && shippingCharges !== 0 && !validatePositiveNumber(shippingCharges)) {
-      throw new Error("Shipping charges must be a positive number");
-    }
-    if (budget && budget.from && !validatePositiveNumber(budget.from)) {
-      throw new Error("Budget from must be a positive number");
-    }
-    if (budget && budget.to && !validatePositiveNumber(budget.to)) {
-      throw new Error("Budget to must be a positive number");
-    }
-    if (budget && budget.from && budget.to && parseFloat(budget.from) > parseFloat(budget.to)) {
-      throw new Error("Budget from cannot be greater than budget to");
-    }
+    const leadDetails = await LEAD.create(leadData);
 
-    // Validate items
-    items.forEach((item, index) => {
-      if (!validateRequiredField(item.inquiryCategory)) {
-        throw new Error(`Item ${index + 1}: Inquiry category is required`);
-      }
-      /* if (!validateRequiredField(item.modelSuggestion)) {
-        throw new Error(`Item ${index + 1}: Model suggestion is required`);
-      } */
-      if (item.qty && (!validatePositiveNumber(item.qty) || parseFloat(item.qty) < 0)) {
-        throw new Error(`Item ${index + 1}: Quantity must be a positive number`);
-      }
-      /* if (item.rate && (!validatePositiveNumber(item.rate) || parseFloat(item.rate) < 0)) {
-        throw new Error(`Item ${index + 1}: Rate must be a positive number`);
-      } */
-      if (!validatePositiveNumber(item.gst) || parseFloat(item.gst) < 0 || parseFloat(item.gst) > 100) {
-        throw new Error(`Item ${index + 1}: GST must be between 0 and 100`);
-      }
+    await incrementCount({
+      statusId: leadDetails.leadStatus,
+      sourceId: leadDetails.leadSource,
     });
-
-    const leadData = {
-      leadDate,
-      clientType: clientType || undefined,
-      deliveryDate: deliveryDate || undefined,
-      shippingCharges: shippingCharges || undefined,
-      budget: {
-        from: budget?.from || undefined,
-        to: budget?.to || undefined,
-      },
-      accountMaster,
-      leadStatus,
-      items: items.map(item => ({
-        ...item,
-        modelSuggestion: item.modelSuggestion || undefined,
-        qty: item.qty || "0",
-        rate: item.rate || "0",
-        gst: item.gst || "0",
-        total: item.total || "0"
-      })),
-      remarks,
-      paymentHistory,
-      totalAmount,
-    };
-
-    const lead = await LEAD.create(leadData);
 
     return res.status(201).json({
       status: "Success",
-      message: "Lead created successfully",
-      data: lead,
+      message: "Leads created successfully",
+      data: leadDetails,
     });
   } catch (error) {
     return res.status(400).json({
@@ -105,71 +26,96 @@ exports.createLead = async (req, res) => {
   }
 };
 
-/* =========================
-   FETCH ALL LEADS (Pagination + Search)
-========================= */
-
 exports.fetchAllLeads = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const search = req.query.search || "";
 
-    let query = {
-      $and: [
-        { $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }] },
-        { leadStatus: { $in: req.permissions } },
-      ],
-    };
+    const { search = "", status, source, staff, date, from, to } = req.query;
 
+    // 🔥 BASE QUERY
+    const query = {};
+
+    /* =====================
+       SEARCH (TEXT)
+    ====================== */
     if (search) {
-      const accountMasters = await require("../model/accountMaster").find({
-        $or: [
-          { companyName: { $regex: search, $options: "i" } },
-          { clientName: { $regex: search, $options: "i" } }
-        ]
-      }).select('_id');
-
-      const accountMasterIds = accountMasters.map(am => am._id);
-
-      query.$and.push({
-        $or: [
-          { leadStatus: { $regex: search, $options: "i" } },
-          { clientType: { $regex: search, $options: "i" } },
-          { accountMaster: { $in: accountMasterIds } }
-        ],
-      });
+      query.$or = [
+        { fullName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+        { companyName: { $regex: search, $options: "i" } },
+        { priority: { $regex: search, $options: "i" } },
+      ];
     }
 
-    const totalRecords = await LEAD.countDocuments(query);
+    /* =====================
+       STATUS FILTER
+    ====================== */
+    if (status) {
+      query.leadStatus = status; // expects ObjectId
+    }
 
-    const leads = await LEAD.find(query)
-      .populate({
-        path: "accountMaster",
-        populate: [
-          { path: "assignBy" },
-          { path: "sourcebyTypeOfClient" },
-          { path: "sourceFrom" }
-        ]
-      })
-      .populate("items.inquiryCategory")
-      .populate({ path: "items.modelSuggestion", populate: { path: "color" } })
-      .populate("items.customizationType")
-      .sort({ createdAt: -1 })
+    /* =====================
+       SOURCE FILTER
+    ====================== */
+    if (source) {
+      query.leadSource = source; // expects ObjectId
+    }
+
+    /* =====================
+       STAFF FILTER
+    ====================== */
+    if (staff) {
+      query.assignedTo = staff; // expects ObjectId
+    }
+
+    if (from || to) {
+      const start = from ? new Date(from) : new Date(0);
+      start.setHours(0, 0, 0, 0);
+
+      const end = to ? new Date(to) : new Date();
+      end.setHours(23, 59, 59, 999);
+
+      query.createdAt = { $gte: start, $lte: end };
+    } else if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+
+      query.createdAt = { $gte: start, $lte: end };
+    }
+
+    if (req.leadScope === "own" && req.user && req.user._id) {
+      query.assignedTo = req.user._id;
+    }
+
+    /* =====================
+       DB QUERY
+    ====================== */
+    const totalLeads = await LEAD.countDocuments(query);
+
+    const LeadData = await LEAD.find(query)
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .populate("leadStatus")
+      .populate("leadSource")
+      .populate("assignedTo");
 
     return res.status(200).json({
       status: "Success",
       message: "Leads fetched successfully",
       pagination: {
-        totalRecords,
+        totalRecords: totalLeads,
         currentPage: page,
-        totalPages: Math.ceil(totalRecords / limit),
+        totalPages: Math.ceil(totalLeads / limit),
         limit,
       },
-      data: leads,
+      data: LeadData,
     });
   } catch (error) {
     return res.status(500).json({
@@ -179,33 +125,34 @@ exports.fetchAllLeads = async (req, res) => {
   }
 };
 
-/* =========================
-   FETCH LEAD BY ID
-========================= */
-
 exports.fetchLeadById = async (req, res) => {
   try {
-    const id = req.params.id;
+    let LeadId = req.params.id;
+    let leadData = await LEAD.findById(LeadId)
+      .populate({ path: "leadStatus" })
+      .populate({ path: "leadSource" })
+      .populate({ path: "assignedTo" });
+    if (!leadData) {
+      throw new Error("Lead not found");
+    }
 
-    const lead = await LEAD.findById(id)
-      .populate({
-        path: "accountMaster",
-        populate: [
-          { path: "assignBy" },
-          { path: "sourcebyTypeOfClient" },
-          { path: "sourceFrom" }
-        ]
-      })
-      .populate("items.inquiryCategory")
-      .populate({ path: "items.modelSuggestion", populate: { path: "color" } })
-      .populate("items.customizationType");
-
-    if (!lead) throw new Error("Lead not found");
+    if (
+      req.leadScope === "own" &&
+      req.user &&
+      leadData.assignedTo &&
+      leadData.assignedTo._id &&
+      String(leadData.assignedTo._id) !== String(req.user._id)
+    ) {
+      return res.status(403).json({
+        status: "Fail",
+        message: "Access denied",
+      });
+    }
 
     return res.status(200).json({
       status: "Success",
       message: "Lead fetched successfully",
-      data: lead,
+      data: leadData,
     });
   } catch (error) {
     return res.status(404).json({
@@ -215,61 +162,49 @@ exports.fetchLeadById = async (req, res) => {
   }
 };
 
-/* =========================
-   UPDATE LEAD
-========================= */
-
-exports.updateLead = async (req, res) => {
+exports.leadUpdate = async (req, res) => {
   try {
-    const id = req.params.id;
+    let leadId = req.params.id;
+    let oldLeads = await LEAD.findById(leadId);
 
-    const oldLead = await LEAD.findById(id);
-    if (!oldLead) throw new Error("Lead not found");
-
-    const { LEAD_STATUSES } = require("../constants/leadStatus");
-    const newStatus = req.body.leadStatus;
-
-    if (newStatus) {
-      const currentIndex = LEAD_STATUSES.indexOf(oldLead.leadStatus);
-      const newIndex = LEAD_STATUSES.indexOf(newStatus);
-
-      // Allow only 1 step backward, except for Lost
-      if (newIndex < currentIndex - 1 && newStatus !== "Lost") {
-        return res.status(400).json({
-          status: "Fail",
-          message: "Can only move 1 step backward",
-        });
-      }
-
-      // Update maxStatusReached if moving forward
-      const maxIndex = LEAD_STATUSES.indexOf(oldLead.maxStatusReached || "New Lead");
-      if (newIndex > maxIndex) {
-        req.body.maxStatusReached = newStatus;
-      }
+    if (!oldLeads) {
+      throw new Error("Lead not found");
     }
 
-    const updateData = { ...req.body };
-    if (updateData.clientType === "") updateData.clientType = undefined;
-    if (updateData.deliveryDate === "") updateData.deliveryDate = undefined;
-    if (updateData.items) {
-      updateData.items = updateData.items.map(item => ({
-        ...item,
-        modelSuggestion: item.modelSuggestion || undefined
-      }));
+    if (req.files) {
+      req.body.attachments = req.files.map((el) => el.filename);
     }
 
-    const updatedLead = await LEAD.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true }
-    );
+    let updatedLeads = await LEAD.findByIdAndUpdate(leadId, req.body, {
+      new: true,
+    }).populate("leadStatus").populate("leadSource").populate("assignedTo");
 
+    // 🔹 Status change handling
+    if (
+      oldLeads.leadStatus?.toString() !== updatedLeads.leadStatus?.toString()
+    ) {
+      await decrementCount({ statusId: oldLeads.leadStatus });
+      await incrementCount({ statusId: updatedLeads.leadStatus });
+    }
+
+    // 🔹 Source change handling
+    if (
+      oldLeads.leadSource?.toString() !== updatedLeads.leadSource?.toString()
+    ) {
+      await decrementCount({ sourceId: oldLeads.leadSource });
+      await incrementCount({ sourceId: updatedLeads.leadSource });
+    }
     return res.status(200).json({
       status: "Success",
       message: "Lead updated successfully",
-      data: updatedLead,
+      data: updatedLeads,
     });
   } catch (error) {
+    if (req.file) {
+      req.files.map((el) =>
+        deleteUploadedFile("images/LeadAttachment", el.filename),
+      );
+    }
     return res.status(404).json({
       status: "Fail",
       message: error.message,
@@ -277,18 +212,26 @@ exports.updateLead = async (req, res) => {
   }
 };
 
-/* =========================
-   DELETE LEAD
-========================= */
-
-exports.deleteLead = async (req, res) => {
+exports.leadDelete = async (req, res) => {
   try {
-    const id = req.params.id;
+    let leadId = req.params.id;
+    let oldLead = await LEAD.findById(leadId);
 
-    const lead = await LEAD.findById(id);
-    if (!lead) throw new Error("Lead not found");
+    if (!oldLead) {
+      throw new Error("Lead not found");
+    }
+    if (oldLead.attachments) {
+      oldLead.attachments.map((el) =>
+        deleteUploadedFile("images/LeadAttachment", el),
+      );
+    }
 
-    await LEAD.findByIdAndUpdate(id, { isDeleted: true });
+    await decrementCount({
+      statusId: oldLead.leadStatus,
+      sourceId: oldLead.leadSource,
+    });
+
+    await LEAD.findByIdAndDelete(leadId);
 
     return res.status(200).json({
       status: "Success",
@@ -302,54 +245,312 @@ exports.deleteLead = async (req, res) => {
   }
 };
 
-/* =========================
-   FETCH LEADS BY STATUS
-========================= */
-
-exports.fetchLeadsByStatus = async (req, res) => {
+exports.fetchLeadsForKanban = async (req, res) => {
+  console.log("leads");
   try {
-    const { status } = req.params;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
-
-    if (!req.permissions.includes(status)) {
-      return res.status(403).json({
-        status: "Fail",
-        message: "You don't have permission to view this status",
-      });
+    const match = {};
+    if (req.leadScope === "own" && req.user && req.user._id) {
+      match.assignedTo = req.user._id;
     }
 
-    const query = {
-      leadStatus: status,
-      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }]
-    };
+    const leads = await LEAD.find(match)
+      .populate("leadStatus")
+      .populate("leadSource")
+      .populate("assignedTo")
+      .sort({ createdAt: -1 });
 
-    const totalRecords = await LEAD.countDocuments(query);
+    const kanbanData = {};
 
-    const leads = await LEAD.find(query)
-      .populate({
-        path: "accountMaster",
-        populate: [
-          { path: "assignBy" },
-          { path: "sourcebyTypeOfClient" },
-          { path: "sourceFrom" }
-        ]
-      })
-      .populate("items.inquiryCategory")
-      .populate({ path: "items.modelSuggestion", populate: { path: "color" } })
-      .populate("items.customizationType")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    leads.forEach((lead) => {
+      const statusId = lead.leadStatus?._id.toString();
+      const statusName = lead.leadStatus?.name;
+
+      if (!kanbanData[statusId]) {
+        kanbanData[statusId] = {
+          statusId,
+          statusName,
+          leads: [],
+        };
+      }
+
+      kanbanData[statusId].leads.push(lead);
+    });
 
     return res.status(200).json({
       status: "Success",
-      message: "Leads fetched successfully",
+      message: "Kanban leads fetched successfully",
+      data: Object.values(kanbanData),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "Fail",
+      message: error.message,
+    });
+  }
+};
+
+exports.updateKanbanStatus = async (req, res) => {
+  try {
+    const leadId = req.params.id;
+    const { leadStatus } = req.body;
+
+    const oldLead = await LEAD.findById(leadId);
+    if (!oldLead) {
+      throw new Error("Lead not found");
+    }
+
+    // Update status
+    oldLead.leadStatus = leadStatus;
+    await oldLead.save();
+
+    // Update count
+    if (oldLead.leadStatus.toString() !== leadStatus.toString()) {
+      await decrementCount({ statusId: oldLead.leadStatus });
+      await incrementCount({ statusId: leadStatus });
+    }
+
+    return res.status(200).json({
+      status: "Success",
+      message: "Lead status updated",
+      data: oldLead,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      status: "Fail",
+      message: error.message,
+    });
+  }
+};
+
+exports.getKanbanCounts = async (req, res) => {
+  try {
+    const match = {};
+    if (req.leadScope === "own" && req.user && req.user._id) {
+      match.assignedTo = req.user._id;
+    }
+
+    const pipeline = [];
+    if (Object.keys(match).length > 0) {
+      pipeline.push({ $match: match });
+    }
+    pipeline.push({
+      $group: {
+        _id: "$leadStatus",
+        total: { $sum: 1 },
+      },
+    });
+
+    const counts = await LEAD.aggregate(pipeline);
+
+    return res.status(200).json({
+      status: "Success",
+      data: counts,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "Fail",
+      message: error.message,
+    });
+  }
+};
+
+exports.getLeadCountSummary = async (req, res) => {
+  try {
+    const startOfMonth = new Date(
+      new Date().getFullYear(),
+      new Date().getMonth(),
+      1,
+    );
+
+    const endOfMonth = new Date(
+      new Date().getFullYear(),
+      new Date().getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+    );
+
+    const allStatuses = await LeadStatus.find().select("_id name");
+
+    const baseMatch = {};
+    if (req.leadScope === "own" && req.user && req.user._id) {
+      baseMatch.assignedTo = req.user._id;
+    }
+
+    const counts = await LEAD.aggregate([
+      {
+        $facet: {
+          totalLeads: [
+            Object.keys(baseMatch).length > 0 ? { $match: baseMatch } : null,
+            { $count: "count" },
+          ].filter(Boolean),
+
+          monthlyLeads: [
+            {
+              $match: {
+                ...baseMatch,
+                createdAt: {
+                  $gte: startOfMonth,
+                  $lte: endOfMonth,
+                },
+              },
+            },
+            { $count: "count" },
+          ],
+
+          statusWise: [
+            Object.keys(baseMatch).length > 0 ? { $match: baseMatch } : null,
+            {
+              $group: {
+                _id: "$leadStatus",
+                count: { $sum: 1 },
+              },
+            },
+          ].filter(Boolean),
+        },
+      },
+    ]);
+
+    const totalLeads = counts[0]?.totalLeads[0]?.count || 0;
+    const monthlyLeads = counts[0]?.monthlyLeads[0]?.count || 0;
+    const statusWiseRaw = counts[0]?.statusWise || [];
+
+    const statusWiseCounts = allStatuses.map((status) => {
+      const found = statusWiseRaw.find(
+        (el) => el._id?.toString() === status._id.toString(),
+      );
+
+      return {
+        statusId: status._id,
+        statusName: status.name,
+        count: found ? found.count : 0,
+      };
+    });
+
+    return res.status(200).json({
+      status: "Success",
+      data: {
+        totalLeads,
+        currentMonthLeads: monthlyLeads,
+        statusWiseCounts,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "Fail",
+      message: error.message,
+    });
+  }
+};
+
+exports.getUpcomingFollowups = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const now = new Date();
+
+    const matchStage = {
+      isActive: true,
+      nextFollowupDate: { $ne: null },
+      nextFollowupTime: { $ne: null },
+    };
+
+    if (req.leadScope === "own" && req.user && req.user._id) {
+      matchStage.assignedTo = req.user._id;
+    }
+
+    const basePipeline = [
+      {
+        $match: matchStage,
+      },
+      {
+        $addFields: {
+          followupDateTime: {
+            $dateFromString: {
+              dateString: {
+                $concat: [
+                  {
+                    $dateToString: {
+                      format: "%Y-%m-%d",
+                      date: "$nextFollowupDate",
+                    },
+                  },
+                  " ",
+                  "$nextFollowupTime",
+                ],
+              },
+              format: "%Y-%m-%d %H:%M",
+              timezone: "Asia/Kolkata", // 🔥 CRITICAL FIX
+            },
+          },
+        },
+      },
+      {
+        $match: {
+          followupDateTime: { $gte: now },
+        },
+      },
+    ];
+
+    // 👉 total count
+    const totalResult = await LEAD.aggregate([
+      ...basePipeline,
+      { $count: "count" },
+    ]);
+
+    const total = totalResult[0]?.count || 0;
+
+    // 👉 paginated data
+    const leads = await LEAD.aggregate([
+      ...basePipeline,
+      { $sort: { followupDateTime: 1 } }, // nearest first
+      { $skip: skip },
+      { $limit: limit },
+
+      // populate leadStatus
+      {
+        $lookup: {
+          from: "leadstatuses",
+          localField: "leadStatus",
+          foreignField: "_id",
+          as: "leadStatus",
+        },
+      },
+      { $unwind: { path: "$leadStatus", preserveNullAndEmptyArrays: true } },
+
+      // populate assignedTo
+      {
+        $lookup: {
+          from: "staffs",
+          localField: "assignedTo",
+          foreignField: "_id",
+          as: "assignedTo",
+        },
+      },
+      { $unwind: { path: "$assignedTo", preserveNullAndEmptyArrays: true } },
+
+      // populate leadSource
+      {
+        $lookup: {
+          from: "leadsources",
+          localField: "leadSource",
+          foreignField: "_id",
+          as: "leadSource",
+        },
+      },
+      { $unwind: { path: "$leadSource", preserveNullAndEmptyArrays: true } },
+    ]);
+
+    return res.status(200).json({
+      status: "Success",
+      message: "Upcoming followups fetched",
       pagination: {
-        totalRecords,
+        totalRecords: total,
         currentPage: page,
-        totalPages: Math.ceil(totalRecords / limit),
+        totalPages: Math.ceil(total / limit),
         limit,
       },
       data: leads,
@@ -362,468 +563,116 @@ exports.fetchLeadsByStatus = async (req, res) => {
   }
 };
 
-/* =========================
-   ADD FOLLOW UP
-========================= */
-
-exports.addFollowUp = async (req, res) => {
+exports.getDueFollowups = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { date, description } = req.body;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-    if (!date || !description) {
-      throw new Error("Date and description are required");
+    const now = new Date();
+
+    const matchStage = {
+      isActive: true,
+      nextFollowupDate: { $ne: null },
+      nextFollowupTime: { $ne: null },
+    };
+
+    if (req.leadScope === "own" && req.user && req.user._id) {
+      matchStage.assignedTo = req.user._id;
     }
 
-    const lead = await LEAD.findById(id);
-    if (!lead) throw new Error("Lead not found");
-
-    lead.followUps.push({ date, description });
-    await lead.save();
-
-    return res.status(200).json({
-      status: "Success",
-      message: "Follow up added successfully",
-      data: lead,
-    });
-  } catch (error) {
-    return res.status(400).json({
-      status: "Fail",
-      message: error.message,
-    });
-  }
-};
-
-/* =========================
-   TOGGLE ITEM DONE STATUS
-========================= */
-
-exports.toggleItemDone = async (req, res) => {
-  try {
-    const { id, itemId } = req.params;
-
-    const lead = await LEAD.findById(id);
-    if (!lead) throw new Error("Lead not found");
-
-    const item = lead.items.id(itemId);
-    if (!item) throw new Error("Item not found");
-
-    item.isDone = !item.isDone;
-    await lead.save();
-
-    return res.status(200).json({
-      status: "Success",
-      message: "Item status updated",
-      data: lead,
-    });
-  } catch (error) {
-    return res.status(400).json({
-      status: "Fail",
-      message: error.message,
-    });
-  }
-};
-
-/* =========================
-   ADD PAYMENT
-========================= */
-
-exports.addPayment = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { amount } = req.body;
-
-    if (!validatePositiveNumber(amount) || parseFloat(amount) <= 0) {
-      throw new Error("Valid amount is required");
-    }
-
-    const lead = await LEAD.findById(id);
-    if (!lead) throw new Error("Lead not found");
-
-    const totalAmount = parseFloat(lead.totalAmount || 0);
-    const paidAmount = lead.paymentHistory.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-    const pendingAmount = totalAmount - paidAmount;
-
-    if (parseFloat(amount) > pendingAmount + 0.01) {
-      throw new Error("Amount exceeds pending amount");
-    }
-
-    lead.paymentHistory.push({ amount, date: new Date() });
-    await lead.save();
-
-    return res.status(200).json({
-      status: "Success",
-      message: "Payment added successfully",
-      data: lead,
-    });
-  } catch (error) {
-    return res.status(400).json({
-      status: "Fail",
-      message: error.message,
-    });
-  }
-};
-
-/* =========================
-   DASHBOARD STATS
-========================= */
-
-exports.getDashboardStats = async (req, res) => {
-  try {
-    const { LEAD_STATUSES } = require("../constants/leadStatus");
-    const { startDate, endDate, topLimit } = req.query;
-    const limit = parseInt(topLimit) || 5;
-
-    let dateFilter = {};
-    if (startDate && endDate) {
-      dateFilter = {
-        createdAt: {
-          $gte: new Date(startDate),
-          $lte: new Date(endDate)
-        }
-      };
-    }
-
-    const statusCounts = {};
-    for (const status of req.permissions) {
-      const count = await LEAD.countDocuments({
-        leadStatus: status,
-        $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }],
-        ...dateFilter
-      });
-      statusCounts[status] = count;
-    }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const todayFollowUps = await LEAD.find({
-      leadStatus: "Follow Up",
-      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }],
-      "followUps.date": {
-        $gte: today,
-        $lt: tomorrow
-      }
-    })
-      .populate({
-        path: "accountMaster",
-        populate: [
-          { path: "assignBy" },
-          { path: "sourcebyTypeOfClient" }
-        ]
-      })
-      .select("accountMaster leadStatus followUps")
-      .sort({ "followUps.date": 1 });
-
-    const followUpsWithDetails = todayFollowUps.map(lead => {
-      const todayFollowUp = lead.followUps.find(f => {
-        const fDate = new Date(f.date);
-        return fDate >= today && fDate < tomorrow;
-      });
-      return {
-        leadId: lead._id,
-        companyName: lead.accountMaster?.companyName,
-        clientName: lead.accountMaster?.clientName,
-        leadStatus: lead.leadStatus,
-        followUpDate: todayFollowUp?.date,
-        followUpDescription: todayFollowUp?.description
-      };
-    });
-
-    const allLeads = await LEAD.find({
-      leadStatus: { $in: req.permissions },
-      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }],
-      ...dateFilter
-    })
-      .select("totalAmount paymentHistory accountMaster leadStatus items")
-      .populate("accountMaster")
-      .populate({
-        path: "items.modelSuggestion",
-        populate: { path: "color" }
-      })
-      .populate("items.inquiryCategory")
-      .populate("items.customizationType");
-
-    // Separate leads for pending calculation (only Dispatch, Completed, Final Payment)
-    const pendingStatusLeads = allLeads.filter(lead =>
-      lead.leadStatus === "Dispatch" ||
-      lead.leadStatus === "Completed" ||
-      lead.leadStatus === "Final Payment"
-    );
-
-    // Separate leads for top models and category (only Completed)
-    const completedLeads = allLeads.filter(lead => lead.leadStatus === "Completed");
-
-    let totalRevenue = 0;
-    let totalPaid = 0;
-    let totalPending = 0;
-    const pendingPaymentLeads = [];
-    const modelCounts = {};
-
-    // Calculate total paid from all leads
-    allLeads.forEach(lead => {
-      const paid = (lead.paymentHistory || []).reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-      totalPaid += paid;
-    });
-
-    // Calculate pending only from Dispatch, Completed, Final Payment status
-    pendingStatusLeads.forEach(lead => {
-      const total = parseFloat(lead.totalAmount || 0);
-      const paid = (lead.paymentHistory || []).reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-      const pending = total - paid;
-      totalPending += pending;
-
-      if (pending > 1) {
-        pendingPaymentLeads.push({
-          leadId: lead._id,
-          companyName: lead.accountMaster?.companyName,
-          clientName: lead.accountMaster?.clientName,
-          leadStatus: lead.leadStatus,
-          totalAmount: total.toFixed(2),
-          paidAmount: paid.toFixed(2),
-          pendingAmount: pending.toFixed(2)
-        });
-      }
-    });
-
-    // Total Revenue = Total Paid + Total Pending
-    totalRevenue = totalPaid + totalPending;
-
-    // Count models only from Completed status
-    completedLeads.forEach(lead => {
-      lead.items.forEach(item => {
-        if (item.modelSuggestion) {
-          const modelName = item.modelSuggestion.name || '';
-          const modelNo = item.modelSuggestion.modelNo || '';
-          const colorName = item.modelSuggestion.color?.name || '';
-          const inquiryCat = item.inquiryCategory?.name || '';
-          const customType = item.customizationType?.name || '';
-          const modelKey = `${item.modelSuggestion._id}|${modelNo}|${modelName}|${colorName}|${inquiryCat}|${customType}`;
-          const qty = parseInt(item.qty || 0);
-          if (modelCounts[modelKey]) {
-            modelCounts[modelKey] += qty;
-          } else {
-            modelCounts[modelKey] = qty;
-          }
-        }
-      });
-    });
-
-    const topModels = Object.entries(modelCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, limit)
-      .map(([key, count]) => {
-        const [id, modelNo, name, color, inquiryCategory, category] = key.split('|');
-        return {
-          modelNo: modelNo || null,
-          name: name || null,
-          color: color || null,
-          inquiryCategory: inquiryCategory || null,
-          category: category || null,
-          count
-        };
-      });
-
-    // Category-wise average rate calculation (only Completed status)
-    const categoryData = {};
-
-    completedLeads.forEach(lead => {
-      lead.items.forEach(item => {
-        if (item.inquiryCategory) {
-          const categoryName = item.inquiryCategory.name || 'Unknown';
-          const qty = parseInt(item.qty || 0);
-          const rate = parseFloat(item.rate || 0);
-          const totalPrice = qty * rate;
-          if (categoryData[categoryName]) {
-            categoryData[categoryName].totalPrice += totalPrice;
-            categoryData[categoryName].totalUnits += qty;
-          } else {
-            categoryData[categoryName] = { totalPrice, totalUnits: qty };
-          }
-        }
-      });
-    });
-
-    const categoryPercentages = Object.entries(categoryData)
-      .map(([category, data]) => {
-        const avgRate = data.totalUnits > 0 ? data.totalPrice / data.totalUnits : 0;
-        return {
-          category,
-          count: data.totalUnits,
-          avgRate: parseFloat(avgRate.toFixed(2)),
-          percentage: 0
-        };
-      })
-      .sort((a, b) => b.avgRate - a.avgRate);
-
-    const ACCOUNTMASTER = require("../model/accountMaster");
-    const totalAccounts = await ACCOUNTMASTER.countDocuments({
-      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }]
-    });
-
-    const convertedAccountIds = [...new Set(allLeads.map(lead => lead.accountMaster?._id?.toString()).filter(Boolean))];
-    const convertedCount = convertedAccountIds.length;
-    const notConvertedCount = totalAccounts - convertedCount;
-
-    // Upcoming Deliveries (Next 7 Days)
-    const next7Days = new Date();
-    next7Days.setDate(next7Days.getDate() + 7);
-    next7Days.setHours(23, 59, 59, 999);
-
-    const upcomingDeliveries = await LEAD.find({
-      leadStatus: { $in: req.permissions },
-      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }],
-      deliveryDate: {
-        $gte: today,
-        $lte: next7Days
-      }
-    })
-      .populate("accountMaster")
-      .select("accountMaster deliveryDate leadStatus totalAmount")
-      .sort({ deliveryDate: 1 })
-      .limit(20);
-
-    const upcomingDeliveriesData = upcomingDeliveries.map(lead => ({
-      leadId: lead._id,
-      companyName: lead.accountMaster?.companyName,
-      clientName: lead.accountMaster?.clientName,
-      deliveryDate: lead.deliveryDate,
-      leadStatus: lead.leadStatus,
-      totalAmount: parseFloat(lead.totalAmount || 0).toFixed(2)
-    }));
-
-    return res.status(200).json({
-      status: "Success",
-      message: "Dashboard stats fetched successfully",
-      data: {
-        statusCounts,
-        todayFollowUps: followUpsWithDetails,
-        paymentStats: {
-          totalRevenue: totalRevenue.toFixed(2),
-          totalPaid: totalPaid.toFixed(2),
-          totalPending: totalPending.toFixed(2)
+    const basePipeline = [
+      {
+        $match: matchStage,
+      },
+      {
+        $addFields: {
+          followupDateTime: {
+            $dateFromString: {
+              dateString: {
+                $concat: [
+                  {
+                    $dateToString: {
+                      format: "%Y-%m-%d",
+                      date: "$nextFollowupDate",
+                    },
+                  },
+                  " ",
+                  "$nextFollowupTime",
+                ],
+              },
+              format: "%Y-%m-%d %H:%M",
+              timezone: "Asia/Kolkata", // 🔥 IMPORTANT
+            },
+          },
         },
-        pendingPaymentLeads,
-        topModels,
-        categoryPercentages,
-        upcomingDeliveries: upcomingDeliveriesData,
-        accountStats: {
-          totalAccounts,
-          convertedToLead: convertedCount,
-          notConvertedToLead: notConvertedCount
-        }
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({
-      status: "Fail",
-      message: error.message,
-    });
-  }
-};
-
-/* =========================
-   GRAPH DATA
-========================= */
-
-exports.getGraphData = async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query;
-
-    let dateFilter = {};
-    if (startDate && endDate) {
-      dateFilter = {
-        createdAt: {
-          $gte: new Date(startDate),
-          $lte: new Date(endDate)
-        }
-      };
-    }
-
-    const allLeads = await LEAD.find({
-      leadStatus: { $in: req.permissions },
-      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }],
-      ...dateFilter
-    }).select("totalAmount paymentHistory leadStatus accountMaster createdAt");
-
-    // Separate leads for pending calculation (only Dispatch, Completed, Final Payment)
-    const pendingStatusLeads = allLeads.filter(lead =>
-      lead.leadStatus === "Dispatch" ||
-      lead.leadStatus === "Completed" ||
-      lead.leadStatus === "Final Payment"
-    );
-
-    // Payment Stats Graph Data
-    let totalRevenue = 0;
-    let totalPaid = 0;
-    let totalPending = 0;
-
-    // Calculate total paid from all leads
-    allLeads.forEach(lead => {
-      const paid = (lead.paymentHistory || []).reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-      totalPaid += paid;
-    });
-
-    // Calculate pending only from Dispatch, Completed, Final Payment status
-    pendingStatusLeads.forEach(lead => {
-      const total = parseFloat(lead.totalAmount || 0);
-      const paid = (lead.paymentHistory || []).reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-      const pending = total - paid;
-      totalPending += pending;
-    });
-
-    // Total Revenue = Total Paid + Total Pending
-    totalRevenue = totalPaid + totalPending;
-
-    const paymentGraphData = [
-      { label: "Total Revenue", value: parseFloat(totalRevenue.toFixed(2)), color: "#10b981" },
-      { label: "Total Paid", value: parseFloat(totalPaid.toFixed(2)), color: "#3b82f6" },
-      { label: "Total Pending", value: parseFloat(totalPending.toFixed(2)), color: "#ef4444" }
+      },
+      {
+        $match: {
+          followupDateTime: { $lt: now }, // ✅ due logic
+        },
+      },
     ];
 
-    // Lead Status Graph Data
-    const statusCounts = {};
-    for (const status of req.permissions) {
-      const count = await LEAD.countDocuments({
-        leadStatus: status,
-        $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }],
-        ...dateFilter
-      });
-      if (count > 0) {
-        statusCounts[status] = count;
-      }
-    }
+    // 👉 total count
+    const totalResult = await LEAD.aggregate([
+      ...basePipeline,
+      { $count: "count" },
+    ]);
 
-    const statusGraphData = Object.entries(statusCounts).map(([status, count]) => ({
-      label: status,
-      value: count
-    }));
+    const total = totalResult[0]?.count || 0;
 
-    // Account Conversion Graph Data
-    const ACCOUNTMASTER = require("../model/accountMaster");
-    const totalAccounts = await ACCOUNTMASTER.countDocuments({
-      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }]
-    });
+    // 👉 paginated data
+    const leads = await LEAD.aggregate([
+      ...basePipeline,
+      { $sort: { followupDateTime: 1 } }, // most overdue first
+      { $skip: skip },
+      { $limit: limit },
 
-    const convertedAccountIds = [...new Set(allLeads.map(lead => lead.accountMaster?.toString()).filter(Boolean))];
-    const convertedCount = convertedAccountIds.length;
-    const notConvertedCount = totalAccounts - convertedCount;
+      // populate leadStatus
+      {
+        $lookup: {
+          from: "leadstatuses",
+          localField: "leadStatus",
+          foreignField: "_id",
+          as: "leadStatus",
+        },
+      },
+      { $unwind: { path: "$leadStatus", preserveNullAndEmptyArrays: true } },
 
-    const accountConversionGraphData = [
-      { label: "Converted to Lead", value: convertedCount, color: "#10b981" },
-      { label: "Not Converted", value: notConvertedCount, color: "#eab308" }
-    ];
+      // populate assignedTo
+      {
+        $lookup: {
+           from: "staffs",
+          localField: "assignedTo",
+          foreignField: "_id",
+          as: "assignedTo",
+        },
+      },
+      { $unwind: { path: "$assignedTo", preserveNullAndEmptyArrays: true } },
+
+      // populate leadSource
+      {
+        $lookup: {
+          from: "leadsources",
+          localField: "leadSource",
+          foreignField: "_id",
+          as: "leadSource",
+        },
+      },
+      { $unwind: { path: "$leadSource", preserveNullAndEmptyArrays: true } },
+    ]);
 
     return res.status(200).json({
       status: "Success",
-      message: "Graph data fetched successfully",
-      data: {
-        paymentGraph: paymentGraphData,
-        leadStatusGraph: statusGraphData,
-        accountConversionGraph: accountConversionGraphData
-      }
+      message: "Due followups fetched",
+      pagination: {
+        totalRecords: total,
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        limit,
+      },
+      data: leads,
     });
   } catch (error) {
     return res.status(500).json({

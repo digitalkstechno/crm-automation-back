@@ -5,24 +5,14 @@ connectDB();
 var createError = require("http-errors");
 var express = require("express");
 var path = require("path");
-const cors = require("cors");
+const cors = require('cors');
 var cookieParser = require("cookie-parser");
 var logger = require("morgan");
 
 var indexRouter = require("./routes/indexv1.js");
 
 var app = express();
-
-// CORS Configuration - Security Fix
-const corsOptions = {
-  origin:
-    process.env.FRONTEND_URL ||
-    "http://localhost:3000" ||
-    "http://localhost:8081",
-  credentials: true, 
-  optionsSuccessStatus: 200,
-};
-app.use(cors(corsOptions));
+app.use(cors());
 
 // view engine setup
 app.set("views", path.join(__dirname, "views"));

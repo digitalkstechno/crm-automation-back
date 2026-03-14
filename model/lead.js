@@ -1,121 +1,86 @@
-let mongoose = require("mongoose");
-let Schema = mongoose.Schema;
-const { LEAD_STATUSES } = require("../constants/leadStatus");
+const mongoose = require("mongoose");
 
-/* -------------------- ITEM SCHEMA -------------------- */
+const { Schema } = mongoose;
 
-let itemSchema = new Schema(
+const LeadSchema = new Schema(
   {
-    inquiryCategory: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "InquiryCategory",
+    fullName: {
+      type: String,
       required: true,
     },
-    modelSuggestion: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "ModelSuggestion",
+
+    contact: {
+      type: String,
+      required: true,
     },
-    qty: { type: String },
-    rate: { type: String },
-    gst: { type: String },
-    total: { type: String },
-    isDone: { type: Boolean, default: false },
-    customizationType: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "CustomizationType",
-    }],
-    customizationDescription: String,
-    personalization: {
-      isPersonalized: {
-        type: Boolean,
-        default: false,
-      },
-      location: String,
-      description: String,
+
+    email: {
+      type: String,
+      required: true,
+      lowercase: true,
     },
-  },
-  { _id: true }
-);
 
-let remarkSchema = new Schema(
-  {
-    date: { type: Date, default: Date.now },
-    remark: { type: String }
-  }
-)
+    companyName: {
+      type: String,
+      required: true,
+    },
 
-let paymentSchema = new Schema({
-  date: { type: Date, default: Date.now },
-  amount: { type: String },
-  modeOfPayment: {
-    type: String,
-    enum: ["Cash", "Cheque", "NEFT", "RTGS", "DD"]
-  },
-  remark: { type: String }
-})
+    address: {
+      type: String,
+      required: true,
+    },
 
-let followUpSchema = new Schema({
-  date: { type: Date, required: true },
-  description: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now }
-})
+    leadStatus: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "leadStatus",
+      required: true,
+    },
 
-/* -------------------- LEAD SCHEMA -------------------- */
+    leadSource: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "leadSource",
+      required: true,
+    },
 
-let leadSchema = new Schema(
-  {
-    leadDate: {
+    assignedTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Staff",
+      required: true,
+    },
+
+    priority: {
+      type: String,
+      enum: ["high", "medium", "low"],
+      default: "medium",
+    },
+
+    nextFollowupDate: {
       type: Date,
       default: Date.now,
     },
 
-    clientType: {
-      type: String,
-      enum: ["New", "Existing"],
-    },
-
-    deliveryDate: {
-      type: Date,
-    },
-
-    shippingCharges: {
+    nextFollowupTime: {
       type: String,
     },
 
-    budget: {
-      from: { type: String },
-      to: { type: String },
-    },
-
-    accountMaster: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "AccountMaster",
-    },
-
-    leadStatus: {
+    note: {
       type: String,
-      enum: LEAD_STATUSES,
-      default: "New Lead",
+      trim: true,
     },
-
-    items: [itemSchema],
-    remarks: [remarkSchema],
-    paymentHistory: [paymentSchema],
-    followUps: [followUpSchema],
-    totalAmount: { type: String },
-    confirmationRemark: { type: String },
-    maxStatusReached: {
-      type: String,
-      enum: LEAD_STATUSES,
-      default: "New Lead",
-    },
-    isDeleted: {
+    attachments: [
+      {
+        type: String,
+      },
+    ],
+    isActive: {
       type: Boolean,
-      default: false,
+      default: true,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  },
 );
 
-let LEAD = mongoose.model("Lead", leadSchema);
+const LEAD = mongoose.model("Lead", LeadSchema);
 module.exports = LEAD;

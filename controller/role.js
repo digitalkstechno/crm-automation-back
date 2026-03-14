@@ -1,56 +1,15 @@
 const ROLE = require("../model/role");
-const { LEAD_STATUSES } = require("../constants/leadStatus");
 
-exports.createRole = async (req, res) => {
+exports.createRole = async (req, res, next) => {
   try {
-    const { roleName, allowedStatuses, canAccessSettings, canAccessAccountMaster, accountMasterViewType, canAccessProduction, canAccessLeads, canAccessReports } = req.body;
-
-    const existingRole = await ROLE.findOne({ roleName });
-    
-    // If role exists and is deleted, reactivate it
-    if (existingRole && existingRole.isDeleted) {
-      const reactivatedRole = await ROLE.findByIdAndUpdate(
-        existingRole._id,
-        { 
-          allowedStatuses, 
-          canAccessSettings,
-          canAccessAccountMaster,
-          accountMasterViewType,
-          canAccessProduction,
-          canAccessLeads,
-          canAccessReports,
-          isDeleted: false 
-        },
-        { new: true }
-      );
-      return res.status(201).json({
-        status: "Success",
-        message: "Role reactivated successfully",
-        data: reactivatedRole,
-      });
-    }
-    
-    // If role exists and is not deleted, throw error
-    if (existingRole) throw new Error("Role already exists");
-
-    const role = await ROLE.create({ 
-      roleName, 
-      allowedStatuses, 
-      canAccessSettings,
-      canAccessAccountMaster,
-      accountMasterViewType,
-      canAccessProduction,
-      canAccessLeads,
-      canAccessReports
-    });
-
-    return res.status(201).json({
+    let roleDetails = req.body;
+    let newRole = await ROLE.create(roleDetails);
+    res.status(201).json({
       status: "Success",
-      message: "Role created successfully",
-      data: role,
+      data: newRole,
     });
   } catch (error) {
-    return res.status(400).json({
+    res.status(404).json({
       status: "Fail",
       message: error.message,
     });
@@ -62,28 +21,29 @@ exports.fetchAllRoles = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
+
     const search = req.query.search || "";
 
-    const query = search
-      ? { roleName: { $regex: search, $options: "i" }, isActive: true, $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }] }
-      : { isActive: true, $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }] };
+    const query = {
+      $or: [{ roleName: { $regex: search, $options: "i" } }],
+    };
 
-    const totalRecords = await ROLE.countDocuments(query);
-    const roles = await ROLE.find(query)
-      .sort({ createdAt: -1 })
+    const totalRoles = await ROLE.countDocuments(query);
+    const rolesData = await ROLE.find(query)
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .sort({ createdAt: -1 });
 
     return res.status(200).json({
       status: "Success",
       message: "Roles fetched successfully",
       pagination: {
-        totalRecords,
+        totalRecords: totalRoles,
         currentPage: page,
-        totalPages: Math.ceil(totalRecords / limit),
+        totalPages: Math.ceil(totalRoles / limit),
         limit,
       },
-      data: roles,
+      data: rolesData,
     });
   } catch (error) {
     return res.status(500).json({
@@ -95,13 +55,15 @@ exports.fetchAllRoles = async (req, res) => {
 
 exports.fetchRoleById = async (req, res) => {
   try {
-    const role = await ROLE.findById(req.params.id);
-    if (!role) throw new Error("Role not found");
-
+    let roleId = req.params.id;
+    let roleData = await ROLE.findById(roleId);
+    if (!roleData) {
+      throw new Error("Role not found");
+    }
     return res.status(200).json({
       status: "Success",
       message: "Role fetched successfully",
-      data: role,
+      data: roleData,
     });
   } catch (error) {
     return res.status(404).json({
@@ -111,17 +73,16 @@ exports.fetchRoleById = async (req, res) => {
   }
 };
 
-exports.updateRole = async (req, res) => {
+exports.roleUpdate = async (req, res) => {
   try {
-    const role = await ROLE.findById(req.params.id);
-    if (!role) throw new Error("Role not found");
-
-    const updatedRole = await ROLE.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-
+    let roleId = req.params.id;
+    let oldRole = await ROLE.findById(roleId);
+    if (!oldRole) {
+      throw new Error("Role not found");
+    }
+    let updatedRole = await ROLE.findByIdAndUpdate(roleId, req.body, {
+      new: true,
+    });
     return res.status(200).json({
       status: "Success",
       message: "Role updated successfully",
@@ -135,12 +96,15 @@ exports.updateRole = async (req, res) => {
   }
 };
 
-exports.deleteRole = async (req, res) => {
+exports.roleDelete = async (req, res) => {
   try {
-    const role = await ROLE.findById(req.params.id);
-    if (!role) throw new Error("Role not found");
+    let roleId = req.params.id;
+    let oldRole = await ROLE.findById(roleId);
 
-    await ROLE.findByIdAndUpdate(req.params.id, { isDeleted: true });
+    if (!oldRole) {
+      throw new Error("Role not found");
+    }
+    await ROLE.findByIdAndDelete(roleId);
 
     return res.status(200).json({
       status: "Success",
@@ -148,21 +112,6 @@ exports.deleteRole = async (req, res) => {
     });
   } catch (error) {
     return res.status(404).json({
-      status: "Fail",
-      message: error.message,
-    });
-  }
-};
-
-exports.getAllStatuses = async (req, res) => {
-  try {
-    return res.status(200).json({
-      status: "Success",
-      message: "Statuses fetched successfully",
-      data: LEAD_STATUSES,
-    });
-  } catch (error) {
-    return res.status(500).json({
       status: "Fail",
       message: error.message,
     });
