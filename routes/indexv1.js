@@ -8,5 +8,6 @@ router.use("/leadsources", require("./leadSources"));
 router.use("/leadstatus", require("./leadStatus"));
 router.use("/lead", require("./lead"));
 router.use("/meta-webhook", require("./metaLead"));
+router.use("/leadlabel", require("./leadLabel"));
 
 module.exports = router;

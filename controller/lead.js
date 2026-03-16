@@ -253,33 +253,30 @@ exports.fetchLeadsForKanban = async (req, res) => {
       match.assignedTo = req.user._id;
     }
 
-    const leads = await LEAD.find(match)
-      .populate("leadStatus")
-      .populate("leadSource")
-      .populate("assignedTo")
-      .sort({ createdAt: -1 });
+    const allStatuses = await LeadStatus.find();
 
-    const kanbanData = {};
-
-    leads.forEach((lead) => {
-      const statusId = lead.leadStatus?._id.toString();
-      const statusName = lead.leadStatus?.name;
-
-      if (!kanbanData[statusId]) {
-        kanbanData[statusId] = {
-          statusId,
-          statusName,
-          leads: [],
+    const kanbanData = await Promise.all(
+      allStatuses.map(async (status) => {
+        const leadMatch = { ...match, leadStatus: status._id };
+        const leads = await LEAD.find(leadMatch)
+          .populate("leadStatus")
+          .populate("leadSource")
+          .populate("assignedTo")
+          .sort({ createdAt: -1 })
+          .limit(10);
+        
+        return {
+          statusId: status._id.toString(),
+          statusName: status.name,
+          leads: leads || [],
         };
-      }
-
-      kanbanData[statusId].leads.push(lead);
-    });
+      })
+    );
 
     return res.status(200).json({
       status: "Success",
       message: "Kanban leads fetched successfully",
-      data: Object.values(kanbanData),
+      data: kanbanData,
     });
   } catch (error) {
     return res.status(500).json({
