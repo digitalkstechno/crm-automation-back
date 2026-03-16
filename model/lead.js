@@ -47,6 +47,10 @@ const LeadSchema = new Schema(
       ref: "Staff",
       required: true,
     },
+    leadLabel: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "leadLabel",
+    }],
 
     priority: {
       type: String,

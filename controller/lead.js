@@ -104,6 +104,7 @@ exports.fetchAllLeads = async (req, res) => {
       .sort({ createdAt: -1 })
       .populate("leadStatus")
       .populate("leadSource")
+      .populate("leadLabel")
       .populate("assignedTo");
 
     return res.status(200).json({
@@ -177,7 +178,7 @@ exports.leadUpdate = async (req, res) => {
 
     let updatedLeads = await LEAD.findByIdAndUpdate(leadId, req.body, {
       new: true,
-    }).populate("leadStatus").populate("leadSource").populate("assignedTo");
+    }).populate("leadStatus").populate("leadSource").populate("assignedTo").populate("leadLabel");
 
     // 🔹 Status change handling
     if (
@@ -261,10 +262,11 @@ exports.fetchLeadsForKanban = async (req, res) => {
         const leads = await LEAD.find(leadMatch)
           .populate("leadStatus")
           .populate("leadSource")
+          .populate("leadLabel")
           .populate("assignedTo")
           .sort({ createdAt: -1 })
           .limit(10);
-        
+
         return {
           statusId: status._id.toString(),
           statusName: status.name,
@@ -640,7 +642,7 @@ exports.getDueFollowups = async (req, res) => {
       // populate assignedTo
       {
         $lookup: {
-           from: "staffs",
+          from: "staffs",
           localField: "assignedTo",
           foreignField: "_id",
           as: "assignedTo",
@@ -663,6 +665,135 @@ exports.getDueFollowups = async (req, res) => {
     return res.status(200).json({
       status: "Success",
       message: "Due followups fetched",
+      pagination: {
+        totalRecords: total,
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        limit,
+      },
+      data: leads,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "Fail",
+      message: error.message,
+    });
+  }
+};
+
+// Get Lost Leads
+// Get Won Leads
+exports.getWonLeads = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // First find the Won status
+    const wonStatus = await LeadStatus.findOne({ name: { $regex: /^won$/i } }); // Case insensitive
+    console.log("wonStatus", req.user);
+
+    if (!wonStatus) {
+      return res.status(200).json({
+        status: "Success",
+        message: "No won leads found",
+        pagination: {
+          totalRecords: 0,
+          currentPage: page,
+          totalPages: 0,
+          limit,
+        },
+        data: [],
+      });
+    }
+
+    const query = {
+      leadStatus: wonStatus._id,
+    };
+
+    if (req.leadScope === "own" && req.user && req.user._id) {
+      query.assignedTo = req.user;
+    }
+    console.log("query", query);
+
+    const total = await LEAD.countDocuments(query);
+
+    const leads = await LEAD.find(query)
+      .populate("leadStatus")
+      .populate("leadSource")
+      .populate("assignedTo")
+      .populate("leadLabel")
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limit);
+      console.log("leads", leads);
+
+    return res.status(200).json({
+      status: "Success",
+      message: "Won leads fetched",
+      pagination: {
+        totalRecords: total,
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        limit,
+      },
+      data: leads,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "Fail",
+      message: error.message,
+    });
+  }
+};
+
+// Get Lost Leads
+exports.getLostLeads = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // First find the Lost status
+    const lostStatus = await LeadStatus.findOne({ name: { $regex: /^lost$/i } }); // Case insensitive
+
+    if (!lostStatus) {
+      return res.status(200).json({
+        status: "Success",
+        message: "No lost leads found",
+        pagination: {
+          totalRecords: 0,
+          currentPage: page,
+          totalPages: 0,
+          limit,
+        },
+        data: [],
+      });
+    }
+
+    const query = {
+      leadStatus: lostStatus._id,
+      isActive: true
+    };
+
+    if (req.leadScope === "own" && req.user && req.user._id) {
+      query.assignedTo = req.user._id;
+    }
+
+    const total = await LEAD.countDocuments(query);
+
+    const leads = await LEAD.find(query)
+      .populate("leadStatus")
+      .populate("leadSource")
+      .populate("assignedTo")
+      .populate("leadLabel")
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return res.status(200).json({
+      status: "Success",
+      message: "Lost leads fetched",
       pagination: {
         totalRecords: total,
         currentPage: page,

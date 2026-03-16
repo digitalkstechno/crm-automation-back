@@ -14,6 +14,8 @@ let {
   getLeadCountSummary,
   getUpcomingFollowups,
   getDueFollowups,
+  getWonLeads,
+  getLostLeads,
 } = require("../controller/lead");
 const authMiddleware = require("../middleware/auth");
 const { authorize, leadReadScope } = require("../middleware/permissions");
@@ -45,6 +47,8 @@ router.get(
   leadReadScope(),
   getDueFollowups,
 );
+router.get("/won", authMiddleware, leadReadScope(), getWonLeads);
+router.get("/lost", authMiddleware, leadReadScope(), getLostLeads);
 router.get("/:id", authMiddleware, leadReadScope(), fetchLeadById);
 router.put(
   "/:id/kanban-status",
