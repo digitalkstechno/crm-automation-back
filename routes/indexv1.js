@@ -12,5 +12,6 @@ router.use("/meta", require("./meta"));
 router.use("/leadlabel", require("./leadLabel"));
 router.use("/team", require("./team"));
 router.use("/organization", require("./organization"));
+router.use("/task", require("./task"));
 
 module.exports = router;
