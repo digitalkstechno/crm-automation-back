@@ -3,6 +3,7 @@ const Lead = require("../model/lead");
 const LeadStatus = require("../model/leadStatus");
 const LeadSource = require("../model/leadSources");
 const Staff = require("../model/staff");
+const LeadLabel = require("../model/leadLabel");
 const { incrementCount } = require("../utils/leadCountHelper");
 
 /**
@@ -185,29 +186,37 @@ exports.handleSheetLead = async (req, res) => {
     // 3. Get default Staff to assign
     let staff = await Staff.findOne({ status: "active" });
 
+    // 4. Get default Lead Label (optional)
+    let label = await LeadLabel.findOne({ name: { $regex: /New|Inquiry/i } });
+    if (!label) label = await LeadLabel.findOne().sort({ order: 1 });
+
     if (!status || !source || !staff) {
-      console.error("Missing metadata for lead creation.");
+      console.error("❌ [SHEET-LEAD] Missing metadata (Status, Source, or Staff) in DB.");
       return res.status(400).json({
         error: "Missing required Lead metadata (Status, Source, or Staff in DB)"
       });
     }
 
-    const leadId = data.id || data.metaLeadId;
+    const leadId = data.id || data.metaLeadId || ("SL_" + Date.now());
 
     const accountData = {
-      fullName: data.full_name || data.clientName || "Sheet Lead",
-      contact: (data.phone_number || data.mobile || "0000000000").toString().replace(/\D/g, ""),
+      fullName: data.full_name || data.clientName || data.name || "Sheet Lead",
+      contact: (data.phone_number || data.mobile || data.contact || "0000000000").toString().replace(/\D/g, ""),
       email: data.email || "",
-      companyName: data.company_name || data.companyName || "Facebook Lead",
-      address: data.city || (data.address && typeof data.address === 'string' ? data.address : "Meta/Sheet"),
+      companyName: data.company_name || data.companyName || "Sheet/Meta Lead",
+      address: data.city || data.address || "Sheet Entry",
       leadStatus: status._id,
       leadSource: source._id,
       assignedTo: staff._id,
+      leadLabel: label ? [label._id] : [],
       metaLeadId: leadId,
       metaRawData: data,
-      priority: "medium",
-      isActive: true
+      priority: data.priority || "medium",
+      isActive: true,
+      note: data.note || `Imported from Google Sheet at ${new Date().toISOString()}`
     };
+
+    console.log("Creating lead with data:", accountData);
 
     // duplicate check
     const existingLead = await Lead.findOne({
