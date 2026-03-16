@@ -10,5 +10,7 @@ router.use("/lead", require("./lead"));
 router.use("/meta-webhook", require("./metaLead"));
 router.use("/meta", require("./meta"));
 router.use("/leadlabel", require("./leadLabel"));
+router.use("/team", require("./team"));
+router.use("/organization", require("./organization"));
 
 module.exports = router;

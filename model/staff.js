@@ -34,6 +34,14 @@ let StaffSchema = new Schema(
       required: true,
       default: "active",
     },
+    teams: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Team",
+    }],
+    organizations: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+    }],
   },
   { timestamps: true },
 );

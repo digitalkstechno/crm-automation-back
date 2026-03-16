@@ -5,7 +5,12 @@ const jwt = require("jsonwebtoken");
 
 exports.createStaff = async (req, res) => {
   try {
-    const { fullName, email, phone, role, password } = req.body;
+    const { fullName, email, phone, role, password, status } = req.body;
+
+    const parseIds = (val) => {
+      if (!val) return [];
+      try { return JSON.parse(val); } catch { return Array.isArray(val) ? val : [val]; }
+    };
 
     const encryptedPassword = encryptData(password);
 
@@ -15,8 +20,10 @@ exports.createStaff = async (req, res) => {
       email,
       phone,
       role,
-      status: "active",
+      status: status || "active",
       password: encryptedPassword,
+      teams: parseIds(req.body.teams),
+      organizations: parseIds(req.body.organizations),
     };
 
     const staffDetails = await STAFF.create(staffData);
@@ -40,7 +47,7 @@ exports.createStaff = async (req, res) => {
 exports.loginStaff = async (req, res) => {
   try {
     const { email, password } = req.body;
-    let staffverify = await STAFF.findOne({ email }).populate("role");
+    let staffverify = await STAFF.findOne({ email }).populate("role").populate("teams").populate("organizations");
     if (!staffverify) {
       throw new Error("Invalid Email or password");
     }
@@ -86,7 +93,9 @@ exports.fetchAllStaffs = async (req, res) => {
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
-      .populate("role");
+      .populate("role")
+      .populate("teams")
+      .populate("organizations");
 
     return res.status(200).json({
       status: "Success",
@@ -110,7 +119,7 @@ exports.fetchAllStaffs = async (req, res) => {
 exports.fetchStaffById = async (req, res) => {
   try {
     let staffId = req.params.id;
-    let staffData = await STAFF.findById(staffId).populate("role");
+    let staffData = await STAFF.findById(staffId).populate("role").populate("teams").populate("organizations");
     if (!staffData) {
       throw new Error("Staff not found");
     }
@@ -149,8 +158,6 @@ exports.getCurrentStaff = async (req, res) => {
 };
 
 exports.staffUpdate = async (req, res) => {
-  console.log(req.body.password);
-
   try {
     let staffId = req.params.id;
     let oldStaff = await STAFF.findById(staffId);
@@ -158,6 +165,15 @@ exports.staffUpdate = async (req, res) => {
     if (!oldStaff) {
       throw new Error("Staff not found");
     }
+
+    const parseIds = (val) => {
+      if (!val) return [];
+      try { return JSON.parse(val); } catch { return Array.isArray(val) ? val : [val]; }
+    };
+
+    if (req.body.teams !== undefined) req.body.teams = parseIds(req.body.teams);
+    if (req.body.organizations !== undefined) req.body.organizations = parseIds(req.body.organizations);
+
     if (req.body.password) {
       req.body.password = encryptData(req.body.password);
     }
