@@ -1,5 +1,9 @@
 const axios = require("axios");
 const Lead = require("../model/lead");
+const LeadStatus = require("../model/leadStatus");
+const LeadSource = require("../model/leadSources");
+const Staff = require("../model/staff");
+const { incrementCount } = require("../utils/leadCountHelper");
 
 /**
  * Maps Meta lead field data to our AccountMaster schema
@@ -162,4 +166,79 @@ exports.pingTest = (req, res) => {
       access_token_set: !!process.env.META_ACCESS_TOKEN
     }
   });
+};
+
+// POST /v1/api/meta/sheet-lead
+exports.handleSheetLead = async (req, res) => {
+  try {
+    const data = req.body;
+    console.log("Sheet Lead Data received:", data);
+
+    // 1. Get default Lead Status
+    let status = await LeadStatus.findOne({ name: { $regex: /Pending|New/i } });
+    if (!status) status = await LeadStatus.findOne().sort({ order: 1 });
+
+    // 2. Get default Lead Source
+    let source = await LeadSource.findOne({ name: { $regex: /Meta|Facebook|Sheet/i } });
+    if (!source) source = await LeadSource.findOne().sort({ order: 1 });
+
+    // 3. Get default Staff to assign
+    let staff = await Staff.findOne({ status: "active" });
+
+    if (!status || !source || !staff) {
+      console.error("Missing metadata for lead creation.");
+      return res.status(400).json({
+        error: "Missing required Lead metadata (Status, Source, or Staff in DB)"
+      });
+    }
+
+    const leadId = data.id || data.metaLeadId;
+
+    const accountData = {
+      fullName: data.full_name || data.clientName || "Sheet Lead",
+      contact: (data.phone_number || data.mobile || "0000000000").toString().replace(/\D/g, ""),
+      email: data.email || "",
+      companyName: data.company_name || data.companyName || "Facebook Lead",
+      address: data.city || (data.address && typeof data.address === 'string' ? data.address : "Meta/Sheet"),
+      leadStatus: status._id,
+      leadSource: source._id,
+      assignedTo: staff._id,
+      metaLeadId: leadId,
+      metaRawData: data,
+      priority: "medium",
+      isActive: true
+    };
+
+    // duplicate check
+    const existingLead = await Lead.findOne({
+      metaLeadId: leadId
+    });
+
+    if (!existingLead) {
+      const newLead = await Lead.create(accountData);
+
+      // Increment source/status counts
+      await incrementCount({
+        statusId: newLead.leadStatus,
+        sourceId: newLead.leadSource,
+      });
+
+      console.log("✅ Sheet Lead Saved:", newLead._id);
+      return res.json({
+        success: true,
+        leadId: newLead._id
+      });
+    } else {
+      console.log("⚠️ Lead already exists:", leadId);
+      return res.json({
+        success: true,
+        message: "Lead already exists"
+      });
+    }
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({
+      error: err.message
+    });
+  }
 };

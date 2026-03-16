@@ -76,6 +76,14 @@ const LeadSchema = new Schema(
       type: Boolean,
       default: true,
     },
+    metaLeadId: {
+      type: String,
+      unique: true,
+      sparse: true
+    },
+    metaRawData: {
+      type: Object
+    }
   },
   {
     timestamps: true,

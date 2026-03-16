@@ -16,4 +16,11 @@ router.post("/webhook", metaController.handleWebhook);
 // Ping Test (To verify route accessibility)
 router.get("/ping", metaController.pingTest);
 
+// Sheet Lead Handler (Direct JSON posting)
+router.post("/sheet-lead", metaController.handleSheetLead);
+
+
+
+
+
 module.exports = router;
