@@ -6,6 +6,15 @@ const connectDB = async () => {
       serverSelectionTimeoutMS: 5000,
     });
     console.log(`MongoDB Connected ✅`);
+    try {
+      await mongoose.connection.collection("leadstatuses").dropIndex("order_1");
+    } catch (e) {}
+    try {
+      const { setupDefaultLeadStatuses } = require("../controller/leadStatus");
+      await setupDefaultLeadStatuses();
+    } catch(e) {
+      console.error("Seeding lead statuses failed", e);
+    }
   } catch (error) {
     console.error("MongoDB connection failed ❌");
     console.error(error.message);
