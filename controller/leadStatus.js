@@ -1,9 +1,51 @@
 const LEADSTATUS = require("../model/leadStatus");
 
+const syncLeadStatusOrders = async () => {
+  const all = await LEADSTATUS.find().sort({ order: 1, createdAt: 1 });
+  
+  const newLead = all.find(s => s.name && s.name.toLowerCase() === "new lead");
+  const won = all.find(s => s.name && s.name.toLowerCase() === "won");
+  const lost = all.find(s => s.name && s.name.toLowerCase() === "lost");
+  
+  const defaultNames = ["new lead", "won", "lost"];
+  const others = all.filter(s => !(s.name && defaultNames.includes(s.name.toLowerCase())));
+  
+  others.sort((a, b) => a.order - b.order);
+  
+  let ordered = [];
+  if (newLead) ordered.push(newLead);
+  ordered.push(...others);
+  if (won) ordered.push(won);
+  if (lost) ordered.push(lost);
+  
+  for (let i = 0; i < ordered.length; i++) {
+    const targetOrder = i + 1;
+    if (ordered[i].order !== targetOrder) {
+      await LEADSTATUS.findByIdAndUpdate(ordered[i]._id, { order: targetOrder });
+    }
+  }
+};
+
+exports.setupDefaultLeadStatuses = async () => {
+  const defaults = ["New Lead", "Won", "Lost"];
+  for (const name of defaults) {
+    const exists = await LEADSTATUS.findOne({ name: { $regex: new RegExp(`^${name}$`, "i") } });
+    if (!exists) {
+      await LEADSTATUS.create({ name, order: 999999 });
+    }
+  }
+  await syncLeadStatusOrders();
+};
+
 exports.createLeadStatus = async (req, res) => {
   try {
     let leadStatusCreate = req.body;
+    if (leadStatusCreate.name && ["new lead", "won", "lost"].includes(leadStatusCreate.name.toLowerCase())) {
+      throw new Error("Cannot manually create default statuses.");
+    }
     let newLeadStatus = await LEADSTATUS.create(leadStatusCreate);
+    await syncLeadStatusOrders();
+    newLeadStatus = await LEADSTATUS.findById(newLeadStatus._id);
     res.status(201).json({
       status: "Success",
       data: newLeadStatus,
@@ -95,9 +137,14 @@ exports.LeadStatusUpdate = async (req, res) => {
     if (!oldLeadStatus) {
       throw new Error("Lead Status not found");
     }
+    if (oldLeadStatus.name && ["new lead", "won", "lost"].includes(oldLeadStatus.name.toLowerCase()) && req.body.name && req.body.name.toLowerCase() !== oldLeadStatus.name.toLowerCase()) {
+      throw new Error("Cannot rename default lead statuses");
+    }
     let updatedStatus = await LEADSTATUS.findByIdAndUpdate(StatusId, req.body, {
       new: true,
     });
+    await syncLeadStatusOrders();
+    updatedStatus = await LEADSTATUS.findById(updatedStatus._id);
     return res.status(200).json({
       status: "Success",
       message: "Lead Status updated successfully",
@@ -119,7 +166,11 @@ exports.LeadStatusDelete = async (req, res) => {
     if (!oldLeadStatus) {
       throw new Error("Lead Status not found");
     }
+    if (oldLeadStatus.name && ["new lead", "won", "lost"].includes(oldLeadStatus.name.toLowerCase())) {
+      throw new Error("Cannot delete default lead status");
+    }
     await LEADSTATUS.findByIdAndDelete(StatusId);
+    await syncLeadStatusOrders();
 
     return res.status(200).json({
       status: "Success",

@@ -10,7 +10,6 @@ let LeadStatusSchema = new Schema(
     },
     order: {
       type: Number,
-      unique: true,
     },
     count: {
       type: Number,
