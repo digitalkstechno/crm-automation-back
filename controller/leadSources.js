@@ -18,33 +18,49 @@ exports.createLeadSources = async (req, res) => {
 
 exports.fetchAllLeadSources = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-
     const search = req.query.search || "";
 
     const query = {
       $or: [{ name: { $regex: search, $options: "i" } }],
     };
 
-    const totalSources = await LEADSOURCES.countDocuments(query);
-    const SourcesData = await LEADSOURCES.find(query)
-      .skip(skip)
-      .limit(limit)
-      .sort({ createdAt: -1 });
+    // check pagination मौजूद है या नहीं
+    const hasPagination = req.query.page || req.query.limit;
 
-    return res.status(200).json({
-      status: "Success",
-      message: "Leads fetched successfully",
-      pagination: {
-        totalRecords: totalSources,
-        currentPage: page,
-        totalPages: Math.ceil(totalSources / limit),
-        limit,
-      },
-      data: SourcesData,
-    });
+    if (hasPagination) {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+
+      const totalSources = await LEADSOURCES.countDocuments(query);
+
+      const SourcesData = await LEADSOURCES.find(query)
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 });
+
+      return res.status(200).json({
+        status: "Success",
+        message: "Leads fetched successfully",
+        pagination: {
+          totalRecords: totalSources,
+          currentPage: page,
+          totalPages: Math.ceil(totalSources / limit),
+          limit,
+        },
+        data: SourcesData,
+      });
+    } else {
+      // 👉 no pagination → all data
+      const SourcesData = await LEADSOURCES.find(query)
+        .sort({ createdAt: -1 });
+
+      return res.status(200).json({
+        status: "Success",
+        message: "All Leads fetched successfully",
+        data: SourcesData,
+      });
+    }
   } catch (error) {
     return res.status(500).json({
       status: "Fail",
