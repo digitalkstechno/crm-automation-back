@@ -454,7 +454,6 @@ exports.getUpcomingFollowups = async (req, res) => {
     const matchStage = {
       isActive: true,
       nextFollowupDate: { $ne: null },
-      nextFollowupTime: { $ne: null },
     };
 
     if (req.leadScope === "own" && req.user && req.user._id) {
@@ -478,14 +477,25 @@ exports.getUpcomingFollowups = async (req, res) => {
                     },
                   },
                   " ",
-                  "$nextFollowupTime",
+                  {
+                    $cond: {
+                      if: { $in: ["$nextFollowupTime", [null, ""]] },
+                      then: "00:00",
+                      else: "$nextFollowupTime"
+                    }
+                  }
                 ],
               },
               format: "%Y-%m-%d %H:%M",
               timezone: "Asia/Kolkata", // 🔥 CRITICAL FIX
+              onError: null,
+              onNull: null,
             },
           },
         },
+      },
+      {
+        $match: { followupDateTime: { $ne: null } }
       },
       {
         $match: {
@@ -597,14 +607,25 @@ exports.getDueFollowups = async (req, res) => {
                     },
                   },
                   " ",
-                  "$nextFollowupTime",
+                  {
+                    $cond: {
+                      if: { $in: ["$nextFollowupTime", [null, ""]] },
+                      then: "00:00",
+                      else: "$nextFollowupTime"
+                    }
+                  }
                 ],
               },
               format: "%Y-%m-%d %H:%M",
               timezone: "Asia/Kolkata", // 🔥 IMPORTANT
+              onError: null,
+              onNull: null,
             },
           },
         },
+      },
+      {
+        $match: { followupDateTime: { $ne: null } }
       },
       {
         $match: {
