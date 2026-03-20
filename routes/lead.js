@@ -5,6 +5,7 @@ const upload = createUploader("images/LeadAttachment");
 let {
   createLead,
   fetchAllLeads,
+  fetchMyLeads,
   fetchLeadById,
   leadUpdate,
   leadDelete,
@@ -12,8 +13,11 @@ let {
   updateKanbanStatus,
   getKanbanCounts,
   getLeadCountSummary,
+  getMyLeadSummary,
   getUpcomingFollowups,
+  getMyUpcomingFollowups,
   getDueFollowups,
+  getMyDueFollowups,
   getWonLeads,
   getLostLeads,
 } = require("../controller/lead");
@@ -21,6 +25,8 @@ const authMiddleware = require("../middleware/auth");
 const { authorize, leadReadScope } = require("../middleware/permissions");
 
 router.post("/create", authMiddleware, authorize("lead", "create"), upload.array("attachments"), createLead);
+router.get("/my", authMiddleware, fetchMyLeads);
+router.get("/count-summary/my", authMiddleware, getMyLeadSummary);
 router.get("/", authMiddleware, leadReadScope(), fetchAllLeads);
 router.get("/kanban", authMiddleware, leadReadScope(), fetchLeadsForKanban);
 router.get(
@@ -42,10 +48,20 @@ router.get(
   getUpcomingFollowups,
 );
 router.get(
+  "/followups/upcoming/my",
+  authMiddleware,
+  getMyUpcomingFollowups,
+);
+router.get(
   "/followups/due",
   authMiddleware,
   leadReadScope(),
   getDueFollowups,
+);
+router.get(
+  "/followups/due/my",
+  authMiddleware,
+  getMyDueFollowups,
 );
 router.get("/won", authMiddleware, leadReadScope(), getWonLeads);
 router.get("/lost", authMiddleware, leadReadScope(), getLostLeads);

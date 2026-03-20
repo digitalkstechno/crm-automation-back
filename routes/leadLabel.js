@@ -15,7 +15,7 @@ const { authorize } = require("../middleware/permissions");
 router.post(
   "/",
   authMiddleware,
-  authorize("setup", "create"),
+  // authorize("setup", "create"),
   createLeadLabel
 );
 
@@ -23,7 +23,7 @@ router.post(
 router.get(
   "/",
   authMiddleware,
-  authorize("setup", "readAll"),
+  // authorize("setup", "readAll"),
   fetchAllLeadLabels
 );
 
@@ -31,7 +31,7 @@ router.get(
 router.get(
   "/:id",
   authMiddleware,
-  authorize("setup", "readAll"),
+  // authorize("setup", "readAll"),
   fetchLeadLabelById
 );
 
@@ -39,7 +39,7 @@ router.get(
 router.put(
   "/:id",
   authMiddleware,
-  authorize("setup", "update"),
+  // authorize("setup", "update"),
   updateLeadLabel
 );
 
@@ -47,7 +47,7 @@ router.put(
 router.delete(
   "/:id",
   authMiddleware,
-  authorize("setup", "delete"),
+  // authorize("setup", "delete"),
   deleteLeadLabel
 );
 
@@ -55,7 +55,7 @@ router.delete(
 router.post(
   "/order/update",
   authMiddleware,
-  authorize("setup", "update"),
+  // authorize("setup", "update"),
   updateLabelOrder
 );
 

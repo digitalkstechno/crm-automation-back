@@ -145,6 +145,11 @@ exports.fetchAllLeads = async (req, res) => {
   }
 };
 
+exports.fetchMyLeads = async (req, res) => {
+  req.leadScope = "own";
+  return exports.fetchAllLeads(req, res);
+};
+
 exports.fetchLeadById = async (req, res) => {
   try {
     let LeadId = req.params.id;
@@ -478,6 +483,21 @@ exports.getLeadCountSummary = async (req, res) => {
       message: error.message,
     });
   }
+};
+
+exports.getMyLeadSummary = async (req, res) => {
+  req.leadScope = "own";
+  return exports.getLeadCountSummary(req, res);
+};
+
+exports.getMyUpcomingFollowups = async (req, res) => {
+  req.leadScope = "own";
+  return exports.getUpcomingFollowups(req, res);
+};
+
+exports.getMyDueFollowups = async (req, res) => {
+  req.leadScope = "own";
+  return exports.getDueFollowups(req, res);
 };
 
 exports.getUpcomingFollowups = async (req, res) => {
