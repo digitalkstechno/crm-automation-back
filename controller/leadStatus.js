@@ -18,33 +18,48 @@ exports.createLeadStatus = async (req, res) => {
 
 exports.fetchAllLeadStatus = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-
     const search = req.query.search || "";
 
     const query = {
       $or: [{ name: { $regex: search, $options: "i" } }],
     };
 
-    const totalStatus = await LEADSTATUS.countDocuments(query);
-    const StatusData = await LEADSTATUS.find(query)
-      .skip(skip)
-      .limit(limit)
-      .sort({ createdAt: -1 });
+    // check if pagination params exist
+    const hasPagination = req.query.page || req.query.limit;
 
-    return res.status(200).json({
-      status: "Success",
-      message: "Leads Status fetched successfully",
-      pagination: {
-        totalRecords: totalStatus,
-        currentPage: page,
-        totalPages: Math.ceil(totalStatus / limit),
-        limit,
-      },
-      data: StatusData,
-    });
+    if (hasPagination) {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+
+      const totalStatus = await LEADSTATUS.countDocuments(query);
+
+      const StatusData = await LEADSTATUS.find(query)
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 });
+
+      return res.status(200).json({
+        status: "Success",
+        message: "Leads Status fetched successfully",
+        pagination: {
+          totalRecords: totalStatus,
+          currentPage: page,
+          totalPages: Math.ceil(totalStatus / limit),
+          limit,
+        },
+        data: StatusData,
+      });
+    } else {
+      // 👉 No pagination → return all data
+      const StatusData = await LEADSTATUS.find(query).sort({ createdAt: -1 });
+
+      return res.status(200).json({
+        status: "Success",
+        message: "All Leads Status fetched successfully",
+        data: StatusData,
+      });
+    }
   } catch (error) {
     return res.status(500).json({
       status: "Fail",
@@ -115,5 +130,25 @@ exports.LeadStatusDelete = async (req, res) => {
       status: "Fail",
       message: error.message,
     });
+  }
+};
+
+exports.setupDefaultLeadStatuses = async () => {
+  try {
+    const defaultStatuses = [
+      { name: "New Lead", order: 1 },
+      { name: "Won", order: 2 },
+      { name: "Lost", order: 3 },
+    ];
+
+    for (const status of defaultStatuses) {
+      const existingStatus = await LEADSTATUS.findOne({ name: status.name });
+      if (!existingStatus) {
+        await LEADSTATUS.create(status);
+      }
+    }
+    console.log("Default lead statuses checked/created ✅");
+  } catch (error) {
+    console.error("Error setting up default lead statuses:", error);
   }
 };

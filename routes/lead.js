@@ -20,7 +20,7 @@ let {
 const authMiddleware = require("../middleware/auth");
 const { authorize, leadReadScope } = require("../middleware/permissions");
 
-router.post("/create", authMiddleware, authorize("lead", "create"), createLead);
+router.post("/create", authMiddleware, authorize("lead", "create"), upload.array("attachments"), createLead);
 router.get("/", authMiddleware, leadReadScope(), fetchAllLeads);
 router.get("/kanban", authMiddleware, leadReadScope(), fetchLeadsForKanban);
 router.get(
@@ -58,9 +58,9 @@ router.put(
 );
 router.put(
   "/:id",
-  upload.array("attachments"),
   authMiddleware,
   authorize("lead", "update"),
+  upload.array("attachments"),
   leadUpdate,
 );
 router.delete(

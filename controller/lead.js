@@ -4,7 +4,21 @@ const { incrementCount, decrementCount } = require("../utils/leadCountHelper");
 const LeadStatus = require("../model/leadStatus");
 exports.createLead = async (req, res) => {
   try {
-    const leadData = req.body;
+    const leadData = { ...req.body };
+
+    // Handle leadLabel[] from FormData
+    if (req.body["leadLabel[]"]) {
+      leadData.leadLabel = Array.isArray(req.body["leadLabel[]"]) ? req.body["leadLabel[]"] : [req.body["leadLabel[]"]];
+      delete leadData["leadLabel[]"];
+    }
+
+    if (req.files && req.files.length > 0) {
+      leadData.attachments = req.files.map((el) => ({
+        originalName: el.originalname,
+        filename: el.filename,
+        path: `/images/LeadAttachment/${el.filename}`,
+      }));
+    }
 
     const leadDetails = await LEAD.create(leadData);
 
@@ -19,6 +33,11 @@ exports.createLead = async (req, res) => {
       data: leadDetails,
     });
   } catch (error) {
+    if (req.files) {
+      req.files.map((el) =>
+        deleteUploadedFile("images/LeadAttachment", el.filename),
+      );
+    }
     return res.status(400).json({
       status: "Fail",
       message: error.message,
@@ -172,13 +191,30 @@ exports.leadUpdate = async (req, res) => {
       throw new Error("Lead not found");
     }
 
-    if (req.files) {
-      req.body.attachments = req.files.map((el) => el.filename);
+    const updateData = { ...req.body };
+
+    // Handle leadLabel[] from FormData
+    if (req.body["leadLabel[]"]) {
+      updateData.leadLabel = Array.isArray(req.body["leadLabel[]"]) ? req.body["leadLabel[]"] : [req.body["leadLabel[]"]];
+      delete updateData["leadLabel[]"];
     }
 
-    let updatedLeads = await LEAD.findByIdAndUpdate(leadId, req.body, {
+    if (req.files && req.files.length > 0) {
+      const newAttachments = req.files.map((el) => ({
+        originalName: el.originalname,
+        filename: el.filename,
+        path: `/images/LeadAttachment/${el.filename}`,
+      }));
+      updateData.attachments = [...(oldLeads.attachments || []), ...newAttachments];
+    }
+
+    let updatedLeads = await LEAD.findByIdAndUpdate(leadId, updateData, {
       new: true,
-    }).populate("leadStatus").populate("leadSource").populate("assignedTo").populate("leadLabel");
+    })
+      .populate("leadStatus")
+      .populate("leadSource")
+      .populate("assignedTo")
+      .populate("leadLabel");
 
     // 🔹 Status change handling
     if (
@@ -201,7 +237,7 @@ exports.leadUpdate = async (req, res) => {
       data: updatedLeads,
     });
   } catch (error) {
-    if (req.file) {
+    if (req.files) {
       req.files.map((el) =>
         deleteUploadedFile("images/LeadAttachment", el.filename),
       );
@@ -221,10 +257,11 @@ exports.leadDelete = async (req, res) => {
     if (!oldLead) {
       throw new Error("Lead not found");
     }
-    if (oldLead.attachments) {
-      oldLead.attachments.map((el) =>
-        deleteUploadedFile("images/LeadAttachment", el),
-      );
+    if (oldLead.attachments && oldLead.attachments.length > 0) {
+      oldLead.attachments.map((el) => {
+        const fileName = (typeof el === 'object' && el.filename) ? el.filename : el;
+        deleteUploadedFile("images/LeadAttachment", fileName);
+      });
     }
 
     await decrementCount({

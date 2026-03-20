@@ -73,7 +73,9 @@ const LeadSchema = new Schema(
     },
     attachments: [
       {
-        type: String,
+        originalName: String,
+        filename: String,
+        path: String,
       },
     ],
     isActive: {
