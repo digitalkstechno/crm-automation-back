@@ -20,6 +20,7 @@ let {
   getMyDueFollowups,
   getWonLeads,
   getLostLeads,
+  deleteAttachment,
 } = require("../controller/lead");
 const authMiddleware = require("../middleware/auth");
 const { authorize, leadReadScope } = require("../middleware/permissions");
@@ -85,4 +86,5 @@ router.delete(
   authorize("lead", "delete"),
   leadDelete,
 );
+router.delete('/:leadId/attachments/:attachmentId', authMiddleware, authorize("lead", "delete"), deleteAttachment);
 module.exports = router;

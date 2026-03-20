@@ -204,13 +204,37 @@ exports.leadUpdate = async (req, res) => {
       delete updateData["leadLabel[]"];
     }
 
+    let currentAttachments = [...(oldLeads.attachments || [])];
+
+    // Handle deleteAttachments[] from FormData
+    if (req.body["deleteAttachments[]"]) {
+      const deleteIds = Array.isArray(req.body["deleteAttachments[]"])
+        ? req.body["deleteAttachments[]"]
+        : [req.body["deleteAttachments[]"]];
+
+      // Filter out attachments to be deleted and delete them from filesystem
+      currentAttachments = currentAttachments.filter(att => {
+        const id = att._id?.toString() || att.path;
+        if (deleteIds.includes(id)) {
+          if (att.filename) {
+            deleteUploadedFile("images/LeadAttachment", att.filename);
+          }
+          return false;
+        }
+        return true;
+      });
+    }
+
     if (req.files && req.files.length > 0) {
       const newAttachments = req.files.map((el) => ({
         originalName: el.originalname,
         filename: el.filename,
         path: `/images/LeadAttachment/${el.filename}`,
       }));
-      updateData.attachments = [...(oldLeads.attachments || []), ...newAttachments];
+      updateData.attachments = [...currentAttachments, ...newAttachments];
+    } else if (req.body["deleteAttachments[]"]) {
+      // If no new files but some were deleted, we still need to update the list
+      updateData.attachments = currentAttachments;
     }
 
     let updatedLeads = await LEAD.findByIdAndUpdate(leadId, updateData, {
@@ -885,5 +909,44 @@ exports.getLostLeads = async (req, res) => {
       status: "Fail",
       message: error.message,
     });
+  }
+};
+
+// DELETE /api/leads/:leadId/attachments/:attachmentId
+exports.deleteAttachment = async (req, res) => {
+  try {
+    const { leadId, attachmentId } = req.params;
+
+    const lead = await LEAD.findById(leadId);
+    if (!lead) {
+      return res.status(404).json({ status: "Fail", message: "Lead not found" });
+    }
+
+    // Find the attachment
+    const attachment = lead.attachments.find(
+      (att) => att._id?.toString() === attachmentId || att.path === attachmentId
+    );
+
+    if (!attachment) {
+      return res.status(404).json({ status: "Fail", message: "Attachment not found" });
+    }
+
+    // Delete file from filesystem
+    if (attachment.filename) {
+      deleteUploadedFile("images/LeadAttachment", attachment.filename);
+    }
+
+    // Remove from DB
+    lead.attachments = lead.attachments.filter(
+      (att) => att._id?.toString() !== attachmentId && att.path !== attachmentId
+    );
+    await lead.save();
+
+    return res.status(200).json({
+      status: "Success",
+      message: "Attachment deleted successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({ status: "Fail", message: error.message });
   }
 };

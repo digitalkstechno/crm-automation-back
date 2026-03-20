@@ -216,3 +216,40 @@ exports.deleteTask = async (req, res) => {
     return res.status(404).json({ status: "Fail", message: error.message });
   }
 };
+exports.deleteAttachment = async (req, res) => {
+  try {
+    const { id, attachmentId } = req.params;
+
+    const task = await Task.findById(id);
+    if (!task) {
+      return res.status(404).json({ status: "Fail", message: "Task not found" });
+    }
+
+    // Find the attachment
+    const attachmentIndex = task.attachments.findIndex(
+      (att) => att._id?.toString() === attachmentId || att.path === attachmentId
+    );
+
+    if (attachmentIndex === -1) {
+      return res.status(404).json({ status: "Fail", message: "Attachment not found" });
+    }
+
+    const attachment = task.attachments[attachmentIndex];
+
+    // Delete file from filesystem
+    if (attachment.filename) {
+      deleteUploadedFile("images/TaskAttachments", attachment.filename);
+    }
+
+    // Remove from DB via splice
+    task.attachments.splice(attachmentIndex, 1);
+    await task.save();
+
+    return res.status(200).json({
+      status: "Success",
+      message: "Attachment deleted successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({ status: "Fail", message: error.message });
+  }
+};
