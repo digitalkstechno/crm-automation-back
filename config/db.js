@@ -15,6 +15,12 @@ const connectDB = async () => {
     } catch(e) {
       console.error("Seeding lead statuses failed", e);
     }
+    try {
+      const { setupDefaultTaskStatuses } = require("../controller/taskStatus");
+      await setupDefaultTaskStatuses();
+    } catch (e) {
+      console.error("Seeding task statuses failed", e);
+    }
   } catch (error) {
     console.error("MongoDB connection failed ❌");
     console.error(error.message);

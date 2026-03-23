@@ -147,7 +147,6 @@ exports.setupDefaultLeadStatuses = async () => {
         await LEADSTATUS.create(status);
       }
     }
-    console.log("Default lead statuses checked/created ✅");
   } catch (error) {
     console.error("Error setting up default lead statuses:", error);
   }

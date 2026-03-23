@@ -17,7 +17,6 @@ exports.verifyWebhook = (req, res) => {
 
   if (mode && token) {
     if (mode === "subscribe" && token === verifyToken) {
-      console.log("WEBHOOK_VERIFIED");
       res.status(200).send(challenge);
     } else {
       res.sendStatus(403);
@@ -40,7 +39,6 @@ exports.handleWebhook = async (req, res) => {
         for (const change of entry.changes) {
           if (change.field === "leadgen") {
             const leadId = change.value.leadgen_id;
-            console.log(`New Meta lead received: ${leadId}`);
             // We don't await here to respond fast to Meta, or we can await if we want to ensure processing
             // Facebook expects a 200 response quickly
             processLead(leadId).catch(err => console.error("Async Process Error:", err));
@@ -78,8 +76,6 @@ async function processLead(leadId) {
             fieldData[field.name] = field.values ? field.values[0] : null;
         });
     }
-
-    console.log("Extracted Meta Field Data:", fieldData);
 
     // 1. Get default Lead Status (Look for 'Pending' or 'New', or first available)
     let status = await LeadStatus.findOne({ name: { $regex: /Pending|New/i } });
@@ -125,7 +121,6 @@ async function processLead(leadId) {
       sourceId: savedLead.leadSource,
     });
 
-    console.log(`Lead ${savedLead._id} from Meta created successfully!`);
   } catch (error) {
     console.error("Error processing Meta lead detail:", error.response ? error.response.data : error.message);
   }

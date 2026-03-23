@@ -313,7 +313,6 @@ exports.leadDelete = async (req, res) => {
 };
 
 exports.fetchLeadsForKanban = async (req, res) => {
-  console.log("leads");
   try {
     const match = {};
     if (req.leadScope === "own" && req.user && req.user._id) {
@@ -793,7 +792,6 @@ exports.getWonLeads = async (req, res) => {
 
     // First find the Won status
     const wonStatus = await LeadStatus.findOne({ name: { $regex: /^won$/i } }); // Case insensitive
-    console.log("wonStatus", req.user);
 
     if (!wonStatus) {
       return res.status(200).json({
@@ -816,7 +814,6 @@ exports.getWonLeads = async (req, res) => {
     if (req.leadScope === "own" && req.user && req.user._id) {
       query.assignedTo = req.user;
     }
-    console.log("query", query);
 
     const total = await LEAD.countDocuments(query);
 
@@ -828,7 +825,6 @@ exports.getWonLeads = async (req, res) => {
       .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(limit);
-      console.log("leads", leads);
 
     return res.status(200).json({
       status: "Success",

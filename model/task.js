@@ -6,10 +6,10 @@ const TaskSchema = new mongoose.Schema(
     description: { type: String, default: "" },
     startDate: { type: Date },
     endDate: { type: Date },
-    status: {
+    taskStatus: { type: mongoose.Schema.Types.ObjectId, ref: "taskStatus" },
+    legacyStatus: {
       type: String,
       enum: ["todo", "in_progress", "completed", "cancelled"],
-      default: "todo",
     },
     priority: {
       type: String,
@@ -29,5 +29,17 @@ const TaskSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Virtual for getting current status value (handles both new and legacy)
+TaskSchema.virtual('status').get(function () {
+  if (this.taskStatus) {
+    return this.taskStatus;
+  }
+  return this.legacyStatus;
+});
+
+// Set virtuals to appear in JSON
+TaskSchema.set('toJSON', { virtuals: true });
+TaskSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model("Task", TaskSchema);
