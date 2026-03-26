@@ -251,3 +251,84 @@ exports.handleSheetLead = async (req, res) => {
     });
   }
 };
+// POST /v1/api/meta/whatsapp-lead
+exports.createWhatsappLead = async (req, res) => {
+  try {
+    console.log(req.body);
+    
+    const { fullName, contact, companyName, notes } = req.body;
+ 
+    if (!fullName || !contact || !companyName) {
+      return res.status(400).json({
+        status: "Fail",
+        message: "fullName, contact, and companyName are required",
+      });
+    }
+
+    // 1. LeadStatus: "New Lead" find karo
+    const leadStatus = await LeadStatus.findOne({
+      name: { $regex: /^new lead$/i },
+    });
+
+    if (!leadStatus) {
+      return res.status(400).json({
+        status: "Fail",
+        message: "Lead status 'New Lead' not found. Please create it first.",
+      });
+    }
+
+    // 2. LeadSource: "WhatsApp" find karo, na ho to create karo
+    let leadSource = await LeadSource.findOne({
+      name: { $regex: /^whatsapp$/i },
+    });
+
+    if (!leadSource) {
+      const lastSource = await LeadSource.findOne().sort({ order: -1 });
+      const nextOrder = lastSource ? (lastSource.order || 0) + 1 : 1;
+      leadSource = await LeadSource.create({ name: "WhatsApp", order: nextOrder });
+    }
+
+    // 3. Duplicate check by contact
+    const existing = await Lead.findOne({ contact });
+    if (existing) {
+      return res.status(200).json({
+        status: "Success",
+        message: "Lead already exists",
+        data: existing,
+      });
+    }
+
+    // 4. Lead create karo
+    const lead = await Lead.create({
+      fullName,
+      contact,
+      companyName,
+      email: `whatsapp_${contact}@placeholder.com`,
+      note: notes || "",
+      leadStatus: leadStatus._id,
+      leadSource: leadSource._id,
+    });
+
+    await incrementCount({
+      statusId: lead.leadStatus,
+      sourceId: lead.leadSource,
+    });
+
+    return res.status(201).json({
+      status: "Success",
+      message: "WhatsApp lead created successfully",
+      data: {
+        ...lead.toObject(),
+        leadStatus: { _id: leadStatus._id, name: leadStatus.name },
+        leadSource: { _id: leadSource._id, name: leadSource.name },
+      },
+    });
+  } catch (error) {
+    return res.status(400).json({
+      status: "Fail",
+      message: error.message,
+    });
+  }
+};
+
+

@@ -16,7 +16,6 @@ const LeadSchema = new Schema(
 
     email: {
       type: String,
-      required: true,
       lowercase: true,
     },
 
@@ -27,7 +26,6 @@ const LeadSchema = new Schema(
 
     address: {
       type: String,
-      required: true,
     },
 
     leadStatus: {
@@ -45,7 +43,6 @@ const LeadSchema = new Schema(
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Staff",
-      required: true,
     },
     leadLabel: [{
       type: mongoose.Schema.Types.ObjectId,
