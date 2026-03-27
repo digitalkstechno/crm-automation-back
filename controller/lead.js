@@ -314,16 +314,76 @@ exports.leadDelete = async (req, res) => {
 
 exports.fetchLeadsForKanban = async (req, res) => {
   try {
+    const { search, status, source, staff, date } = req.query;
+
     const match = {};
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       match.assignedTo = req.user._id;
     }
 
+    // 🔥 SEARCH FILTER
+    if (search) {
+      match.$or = [
+        { fullName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+        { companyName: { $regex: search, $options: "i" } },
+        { priority: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // 🔥 STATUS FILTER (handle comma-separated values)
+    if (status) {
+      const statusArr = status.split(',').filter(s => s.trim());
+      if (statusArr.length === 1) {
+        match.leadStatus = statusArr[0];
+      } else if (statusArr.length > 1) {
+        match.leadStatus = { $in: statusArr };
+      }
+    }
+
+    // 🔥 SOURCE FILTER (handle comma-separated values)
+    if (source) {
+      const sourceArr = source.split(',').filter(s => s.trim());
+      if (sourceArr.length === 1) {
+        match.leadSource = sourceArr[0];
+      } else if (sourceArr.length > 1) {
+        match.leadSource = { $in: sourceArr };
+      }
+    }
+
+    // 🔥 STAFF FILTER (handle comma-separated values)
+    if (staff) {
+      const staffArr = staff.split(',').filter(s => s.trim());
+      if (staffArr.length === 1) {
+        match.assignedTo = staffArr[0];
+      } else if (staffArr.length > 1) {
+        match.assignedTo = { $in: staffArr };
+      }
+    }
+
+    // 🔥 DATE FILTER
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+      match.createdAt = { $gte: start, $lte: end };
+    }
+
     const allStatuses = await LeadStatus.find();
 
+    // If statuses are selected, only return those statuses
+    const statusesToFetch = status
+      ? allStatuses.filter(s => {
+        const statusArr = status.split(',');
+        return statusArr.includes(s._id.toString());
+      })
+      : allStatuses;
+
     const kanbanData = await Promise.all(
-      allStatuses.map(async (status) => {
+      statusesToFetch.map(async (status) => {
         const leadMatch = { ...match, leadStatus: status._id };
         const leads = await LEAD.find(leadMatch)
           .populate("leadStatus")
@@ -389,10 +449,52 @@ exports.updateKanbanStatus = async (req, res) => {
 
 exports.getKanbanCounts = async (req, res) => {
   try {
+    const { search, status, source, staff, date } = req.query;
+
     const match = {};
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       match.assignedTo = req.user._id;
+    }
+
+    // 🔥 SEARCH FILTER
+    if (search) {
+      match.$or = [
+        { fullName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+        { companyName: { $regex: search, $options: "i" } },
+        { priority: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // 🔥 SOURCE FILTER (handle comma-separated values)
+    if (source) {
+      const sourceArr = source.split(',').filter(s => s.trim());
+      if (sourceArr.length === 1) {
+        match.leadSource = sourceArr[0];
+      } else if (sourceArr.length > 1) {
+        match.leadSource = { $in: sourceArr };
+      }
+    }
+
+    // 🔥 STAFF FILTER (handle comma-separated values)
+    if (staff) {
+      const staffArr = staff.split(',').filter(s => s.trim());
+      if (staffArr.length === 1) {
+        match.assignedTo = staffArr[0];
+      } else if (staffArr.length > 1) {
+        match.assignedTo = { $in: staffArr };
+      }
+    }
+
+    // 🔥 DATE FILTER
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+      match.createdAt = { $gte: start, $lte: end };
     }
 
     const pipeline = [];
@@ -439,10 +541,52 @@ exports.getLeadCountSummary = async (req, res) => {
 
     const allStatuses = await LeadStatus.find().select("_id name");
 
+    const { search, source, staff, date } = req.query;
+
     const baseMatch = {};
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       baseMatch.assignedTo = req.user._id;
+    }
+
+    // 🔥 SEARCH FILTER
+    if (search) {
+      baseMatch.$or = [
+        { fullName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+        { companyName: { $regex: search, $options: "i" } },
+        { priority: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // 🔥 SOURCE FILTER (handle comma-separated values)
+    if (source) {
+      const sourceArr = source.split(',').filter(s => s.trim());
+      if (sourceArr.length === 1) {
+        baseMatch.leadSource = sourceArr[0];
+      } else if (sourceArr.length > 1) {
+        baseMatch.leadSource = { $in: sourceArr };
+      }
+    }
+
+    // 🔥 STAFF FILTER (handle comma-separated values)
+    if (staff) {
+      const staffArr = staff.split(',').filter(s => s.trim());
+      if (staffArr.length === 1) {
+        baseMatch.assignedTo = staffArr[0];
+      } else if (staffArr.length > 1) {
+        baseMatch.assignedTo = { $in: staffArr };
+      }
+    }
+
+    // 🔥 DATE FILTER
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+      baseMatch.createdAt = { $gte: start, $lte: end };
     }
 
     const counts = await LEAD.aggregate([
@@ -793,6 +937,8 @@ exports.getWonLeads = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
+    const { search, source, staff, date } = req.query;
+
     // First find the Won status
     const wonStatus = await LeadStatus.findOne({ name: { $regex: /^won$/i } }); // Case insensitive
 
@@ -816,6 +962,46 @@ exports.getWonLeads = async (req, res) => {
 
     if (req.leadScope === "own" && req.user && req.user._id) {
       query.assignedTo = req.user;
+    }
+
+    // 🔥 SEARCH FILTER
+    if (search) {
+      query.$or = [
+        { fullName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+        { companyName: { $regex: search, $options: "i" } },
+        { priority: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // 🔥 SOURCE FILTER (handle comma-separated values)
+    if (source) {
+      const sourceArr = source.split(',').filter(s => s.trim());
+      if (sourceArr.length === 1) {
+        query.leadSource = sourceArr[0];
+      } else if (sourceArr.length > 1) {
+        query.leadSource = { $in: sourceArr };
+      }
+    }
+
+    // 🔥 STAFF FILTER (handle comma-separated values)
+    if (staff) {
+      const staffArr = staff.split(',').filter(s => s.trim());
+      if (staffArr.length === 1) {
+        query.assignedTo = staffArr[0];
+      } else if (staffArr.length > 1) {
+        query.assignedTo = { $in: staffArr };
+      }
+    }
+
+    // 🔥 DATE FILTER
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+      query.createdAt = { $gte: start, $lte: end };
     }
 
     const total = await LEAD.countDocuments(query);
@@ -855,6 +1041,8 @@ exports.getLostLeads = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
+    const { search, source, staff, date } = req.query;
+
     // First find the Lost status
     const lostStatus = await LeadStatus.findOne({ name: { $regex: /^lost$/i } }); // Case insensitive
 
@@ -879,6 +1067,36 @@ exports.getLostLeads = async (req, res) => {
 
     if (req.leadScope === "own" && req.user && req.user._id) {
       query.assignedTo = req.user._id;
+    }
+
+    // 🔥 SEARCH FILTER
+    if (search) {
+      query.$or = [
+        { fullName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+        { companyName: { $regex: search, $options: "i" } },
+        { priority: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // 🔥 SOURCE FILTER
+    if (source) {
+      query.leadSource = source;
+    }
+
+    // 🔥 STAFF FILTER
+    if (staff) {
+      query.assignedTo = staff;
+    }
+
+    // 🔥 DATE FILTER
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+      query.createdAt = { $gte: start, $lte: end };
     }
 
     const total = await LEAD.countDocuments(query);
