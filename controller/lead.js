@@ -315,7 +315,8 @@ exports.leadDelete = async (req, res) => {
 exports.fetchLeadsForKanban = async (req, res) => {
   try {
     const match = {};
-    if (req.leadScope === "own" && req.user && req.user._id) {
+    const myOnly = req.query.my === 'true';
+    if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       match.assignedTo = req.user._id;
     }
 
@@ -389,7 +390,8 @@ exports.updateKanbanStatus = async (req, res) => {
 exports.getKanbanCounts = async (req, res) => {
   try {
     const match = {};
-    if (req.leadScope === "own" && req.user && req.user._id) {
+    const myOnly = req.query.my === 'true';
+    if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       match.assignedTo = req.user._id;
     }
 
@@ -438,7 +440,8 @@ exports.getLeadCountSummary = async (req, res) => {
     const allStatuses = await LeadStatus.find().select("_id name");
 
     const baseMatch = {};
-    if (req.leadScope === "own" && req.user && req.user._id) {
+    const myOnly = req.query.my === 'true';
+    if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       baseMatch.assignedTo = req.user._id;
     }
 

@@ -4,7 +4,7 @@ const { deleteUploadedFile } = require("../utils/fileHelper");
 
 exports.createTask = async (req, res) => {
   try {
-    const { subject, description, startDate, endDate, taskStatus, legacyStatus, priority } = req.body;
+    const { subject, description, startDate, endDate, taskStatus, priority } = req.body;
 
     const parseIds = (val) => {
       if (!val) return [];
@@ -27,14 +27,8 @@ exports.createTask = async (req, res) => {
       assignedTeams: parseIds(req.body.assignedTeams),
       attachments,
       createdBy: req.user?._id,
+      taskStatus: taskStatus || null,
     };
-
-    // Handle status - either new taskStatus reference or legacy status
-    if (taskStatus) {
-      taskData.taskStatus = taskStatus;
-    } else if (legacyStatus) {
-      taskData.legacyStatus = legacyStatus;
-    }
 
     const task = await Task.create(taskData);
 
@@ -53,15 +47,12 @@ exports.getAllTasks = async (req, res) => {
     const search = req.query.search || "";
 
     const query = search ? { subject: { $regex: search, $options: "i" } } : {};
-    // Handle both new taskStatus and legacy status
+    
+    // Status filter
     if (req.query.status) {
-      // Check if it's a valid ObjectId
-      if (req.query.status.match(/^[0-9a-fA-F]{24}$/)) {
-        query.taskStatus = req.query.status;
-      } else {
-        query.legacyStatus = req.query.status;
-      }
+      query.taskStatus = req.query.status;
     }
+    
     if (req.query.priority) query.priority = req.query.priority;
 
     const total = await Task.countDocuments(query);
@@ -110,13 +101,9 @@ exports.updateTask = async (req, res) => {
     if (req.body.assignedUsers !== undefined) updateData.assignedUsers = parseIds(req.body.assignedUsers);
     if (req.body.assignedTeams !== undefined) updateData.assignedTeams = parseIds(req.body.assignedTeams);
 
-    // Handle status - either new taskStatus reference or legacy status
+    // Handle status explicitly if provided
     if (req.body.taskStatus !== undefined) {
       updateData.taskStatus = req.body.taskStatus;
-      updateData.legacyStatus = null;
-    } else if (req.body.legacyStatus !== undefined) {
-      updateData.legacyStatus = req.body.legacyStatus;
-      updateData.taskStatus = null;
     }
 
     if (req.files?.length) {
@@ -145,14 +132,12 @@ exports.getMyTasks = async (req, res) => {
 
     const query = { assignedUsers: req.user._id };
     if (search) query.subject = { $regex: search, $options: "i" };
-    // Handle both new taskStatus and legacy status
+    
+    // Status filter
     if (req.query.status) {
-      if (req.query.status.match(/^[0-9a-fA-F]{24}$/)) {
-        query.taskStatus = req.query.status;
-      } else {
-        query.legacyStatus = req.query.status;
-      }
+      query.taskStatus = req.query.status;
     }
+    
     if (req.query.priority) query.priority = req.query.priority;
 
     const total = await Task.countDocuments(query);
@@ -175,21 +160,11 @@ exports.getMyTasks = async (req, res) => {
 
 exports.updateTaskStatus = async (req, res) => {
   try {
-    const { status, legacyStatus } = req.body;
+    const { status } = req.body;
     const updateData = {};
 
-    // Handle both new taskStatus (ObjectId) and legacy status (string)
     if (status) {
-      if (status.match(/^[0-9a-fA-F]{24}$/)) {
-        updateData.taskStatus = status;
-        updateData.legacyStatus = null;
-      } else {
-        updateData.legacyStatus = status;
-        updateData.taskStatus = null;
-      }
-    } else if (legacyStatus) {
-      updateData.legacyStatus = legacyStatus;
-      updateData.taskStatus = null;
+      updateData.taskStatus = status;
     }
 
     const task = await Task.findByIdAndUpdate(
@@ -227,19 +202,11 @@ exports.getTaskSummary = async (req, res) => {
     // Build status query for each status
     const statusCounts = {};
     let total = 0;
-    let legacyCounts = { todo: 0, in_progress: 0, completed: 0, cancelled: 0 };
 
     for (const status of taskStatuses) {
       const count = await Task.countDocuments({ taskStatus: status._id });
       statusCounts[status._id.toString()] = count;
       statusCounts[status.name] = count;
-      total += count;
-    }
-
-    // Also count legacy statuses
-    for (const status of ['todo', 'in_progress', 'completed', 'cancelled']) {
-      const count = await Task.countDocuments({ legacyStatus: status });
-      legacyCounts[status] = count;
       total += count;
     }
 
@@ -254,7 +221,6 @@ exports.getTaskSummary = async (req, res) => {
       data: {
         total,
         statusCounts,
-        legacyCounts,
         taskStatuses: taskStatuses,
         low, medium, high
       },
@@ -280,18 +246,9 @@ exports.getMyTaskSummary = async (req, res) => {
       total += count;
     }
 
-    // Legacy status counts
-    const legacyStatuses = ['todo', 'in_progress', 'completed', 'cancelled'];
-    const legacyCounts = {};
-    for (const status of legacyStatuses) {
-      const count = await Task.countDocuments({ assignedUsers: userId, legacyStatus: status });
-      legacyCounts[status] = count;
-      total += count;
-    }
-
     return res.status(200).json({
       status: 'Success',
-      data: { total, statusCounts, legacyCounts, taskStatuses },
+      data: { total, statusCounts, taskStatuses },
     });
   } catch (error) {
     return res.status(500).json({ status: 'Fail', message: error.message });
@@ -338,31 +295,17 @@ exports.getTasksForKanban = async (req, res) => {
       };
     }
 
-    // Add legacy status groups
-    const legacyStatusGroups = ['todo', 'in_progress', 'completed', 'cancelled'];
-    for (const status of legacyStatusGroups) {
-      tasksByStatus[status] = {
-        _id: status,
-        name: status === 'in_progress' ? 'In Progress' : status.charAt(0).toUpperCase() + status.slice(1),
-        color: status === 'todo' ? '#6B7280' : status === 'in_progress' ? '#3B82F6' : status === 'completed' ? '#10B981' : '#EF4444',
-        order: 99,
-        tasks: []
-      };
-    }
-
     // Distribute tasks into their status groups
     for (const task of allTasks) {
       let statusKey;
       if (task.taskStatus) {
         statusKey = task.taskStatus._id.toString();
-      } else if (task.legacyStatus) {
-        statusKey = task.legacyStatus;
       } else {
         // Default to first status if no status set
-        statusKey = taskStatuses.length > 0 ? taskStatuses[0]._id.toString() : 'todo';
+        statusKey = taskStatuses.length > 0 ? taskStatuses[0]._id.toString() : null;
       }
 
-      if (tasksByStatus[statusKey]) {
+      if (statusKey && tasksByStatus[statusKey]) {
         tasksByStatus[statusKey].tasks.push(task);
       }
     }
