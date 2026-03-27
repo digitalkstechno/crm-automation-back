@@ -19,6 +19,8 @@ router.get("/ping", metaController.pingTest);
 // Sheet Lead Handler (Direct JSON posting)
 router.post("/sheet-lead", metaController.handleSheetLead);
 
+router.post("/wp-lead", metaController.createWhatsappLead);
+
 
 
 
