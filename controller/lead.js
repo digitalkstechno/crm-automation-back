@@ -124,7 +124,8 @@ exports.fetchAllLeads = async (req, res) => {
       .populate("leadStatus")
       .populate("leadSource")
       .populate("leadLabel")
-      .populate("assignedTo");
+      .populate("assignedTo")
+      .populate("followUps.staff", "fullName email");
 
     return res.status(200).json({
       status: "Success",
@@ -156,7 +157,9 @@ exports.fetchLeadById = async (req, res) => {
     let leadData = await LEAD.findById(LeadId)
       .populate({ path: "leadStatus" })
       .populate({ path: "leadSource" })
-      .populate({ path: "assignedTo" });
+      .populate({ path: "assignedTo" })
+      .populate({ path: "leadLabel" })
+      .populate({ path: "followUps.staff", select: "fullName email" });
     if (!leadData) {
       throw new Error("Lead not found");
     }
@@ -237,13 +240,28 @@ exports.leadUpdate = async (req, res) => {
       updateData.attachments = currentAttachments;
     }
 
+    // 🔹 Follow-up staff injection & data sanitization
+    if (updateData.followUps && Array.isArray(updateData.followUps)) {
+      updateData.followUps = updateData.followUps.map(f => {
+        if (!f.staff && req.user && req.user._id) {
+          f.staff = req.user._id;
+        }
+        return f;
+      });
+    }
+
+    if (updateData.nextFollowupDate === "") {
+      updateData.nextFollowupDate = null;
+    }
+
     let updatedLeads = await LEAD.findByIdAndUpdate(leadId, updateData, {
       new: true,
     })
       .populate("leadStatus")
       .populate("leadSource")
       .populate("assignedTo")
-      .populate("leadLabel");
+      .populate("leadLabel")
+      .populate("followUps.staff", "fullName email");
 
     // 🔹 Status change handling
     if (
@@ -1011,7 +1029,7 @@ exports.getWonLeads = async (req, res) => {
       .populate("leadSource")
       .populate("assignedTo")
       .populate("leadLabel")
-      .sort({ updatedAt: -1 })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
@@ -1106,7 +1124,7 @@ exports.getLostLeads = async (req, res) => {
       .populate("leadSource")
       .populate("assignedTo")
       .populate("leadLabel")
-      .sort({ updatedAt: -1 })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 

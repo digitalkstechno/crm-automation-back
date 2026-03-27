@@ -68,6 +68,15 @@ const LeadSchema = new Schema(
       type: String,
       trim: true,
     },
+    followUps: [
+      {
+        date: { type: Date },
+        time: { type: String },
+        note: { type: String, trim: true },
+        staff: { type: mongoose.Schema.Types.ObjectId, ref: "Staff" },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
     attachments: [
       {
         originalName: String,
