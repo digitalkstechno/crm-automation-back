@@ -46,6 +46,17 @@ exports.createTask = async (req, res) => {
         }));
       if (notifications.length > 0) {
         await Notification.insertMany(notifications);
+        
+        // Emit Socket Event
+        const { getIO } = require("../utils/socket");
+        try {
+          const io = getIO();
+          notifications.forEach(notif => {
+            io.to(notif.recipient.toString()).emit('new_task_assigned', notif);
+          });
+        } catch(err) {
+          console.error("Socket emit error:", err);
+        }
       }
     }
 
@@ -148,6 +159,17 @@ exports.updateTask = async (req, res) => {
         relatedId: updated._id
       }));
       await Notification.insertMany(notifications);
+
+      // Emit Socket Event
+      const { getIO } = require("../utils/socket");
+      try {
+        const io = getIO();
+        notifications.forEach(notif => {
+          io.to(notif.recipient.toString()).emit('new_task_assigned', notif);
+        });
+      } catch(err) {
+        console.error("Socket emit error:", err);
+      }
     }
 
     return res.status(200).json({ status: "Success", message: "Task updated successfully", data: updated });
