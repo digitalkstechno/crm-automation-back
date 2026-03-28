@@ -3,10 +3,11 @@ const router = express.Router();
 const createUploader = require("../utils/multer");
 const upload = createUploader("images/TaskAttachments");
 const authMiddleware = require("../middleware/auth");
-const { createTask, getAllTasks, getTaskById, updateTask, deleteTask, getMyTasks, updateTaskStatus, updateTaskPriority, getTaskSummary, getMyTaskSummary, deleteAttachment, getTasksForKanban } = require("../controller/task");
+const { createTask, getAllTasks, getTaskById, updateTask, deleteTask, getMyTasks, updateTaskStatus, updateTaskPriority, getTaskSummary, getMyTaskSummary, deleteAttachment, getTasksForKanban, getTodayTasks } = require("../controller/task");
 
 router.post("/create", authMiddleware, upload.array("attachments", 10), createTask);
 router.get("/my", authMiddleware, getMyTasks);
+router.get("/today", authMiddleware, getTodayTasks);
 router.get("/summary", authMiddleware, getTaskSummary);
 router.get("/my-summary", authMiddleware, getMyTaskSummary);
 router.get("/kanban", authMiddleware, getTasksForKanban);

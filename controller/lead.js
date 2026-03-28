@@ -2,6 +2,7 @@ const LEAD = require("../model/lead");
 const { deleteUploadedFile } = require("../utils/fileHelper");
 const { incrementCount, decrementCount } = require("../utils/leadCountHelper");
 const LeadStatus = require("../model/leadStatus");
+const Notification = require("../model/notification");
 exports.createLead = async (req, res) => {
   try {
     const leadData = { ...req.body };
@@ -26,6 +27,16 @@ exports.createLead = async (req, res) => {
       statusId: leadDetails.leadStatus,
       sourceId: leadDetails.leadSource,
     });
+
+    if (leadDetails.assignedTo && (!req.user || String(leadDetails.assignedTo) !== String(req.user._id))) {
+      await Notification.create({
+        recipient: leadDetails.assignedTo,
+        title: "New Lead Assigned",
+        message: `You have been assigned to a new lead: ${leadDetails.fullName}`,
+        type: "lead",
+        relatedId: leadDetails._id
+      });
+    }
 
     return res.status(201).json({
       status: "Success",
@@ -277,6 +288,20 @@ exports.leadUpdate = async (req, res) => {
     ) {
       await decrementCount({ sourceId: oldLeads.leadSource });
       await incrementCount({ sourceId: updatedLeads.leadSource });
+    }
+
+    // 🔹 Notification handling for reassignment
+    const oldStaff = oldLeads.assignedTo ? String(oldLeads.assignedTo._id || oldLeads.assignedTo) : null;
+    const newStaff = updatedLeads.assignedTo ? String(updatedLeads.assignedTo._id || updatedLeads.assignedTo) : null;
+
+    if (newStaff && oldStaff !== newStaff && (!req.user || newStaff !== String(req.user._id))) {
+      await Notification.create({
+        recipient: newStaff,
+        title: "Lead Assigned",
+        message: `You have been assigned to the lead: ${updatedLeads.fullName}`,
+        type: "lead",
+        relatedId: updatedLeads._id
+      });
     }
     return res.status(200).json({
       status: "Success",

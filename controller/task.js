@@ -1,5 +1,6 @@
 const Task = require("../model/task");
 const TaskStatus = require("../model/taskStatus");
+const Notification = require("../model/notification");
 const { deleteUploadedFile } = require("../utils/fileHelper");
 
 exports.createTask = async (req, res) => {
@@ -31,6 +32,22 @@ exports.createTask = async (req, res) => {
     };
 
     const task = await Task.create(taskData);
+
+    // Send notifications to assigned users
+    if (task.assignedUsers && task.assignedUsers.length > 0) {
+      const notifications = task.assignedUsers
+        .filter(userId => req.user && String(userId) !== String(req.user._id))
+        .map(userId => ({
+          recipient: userId,
+          title: "New Task Assigned",
+          message: `You have been assigned to a new task: ${task.subject}`,
+          type: "task",
+          relatedId: task._id
+        }));
+      if (notifications.length > 0) {
+        await Notification.insertMany(notifications);
+      }
+    }
 
     return res.status(201).json({ status: "Success", message: "Task created successfully", data: task });
   } catch (error) {
@@ -116,6 +133,23 @@ exports.updateTask = async (req, res) => {
     }
 
     const updated = await Task.findByIdAndUpdate(req.params.id, updateData, { new: true });
+
+    // Handle notifications for newly assigned users
+    const oldUsers = task.assignedUsers ? task.assignedUsers.map(u => String(u._id || u)) : [];
+    const newUsers = updated.assignedUsers ? updated.assignedUsers.map(u => String(u._id || u)) : [];
+    const addedUsers = newUsers.filter(u => !oldUsers.includes(u) && (!req.user || u !== String(req.user._id)));
+
+    if (addedUsers.length > 0) {
+      const notifications = addedUsers.map(userId => ({
+        recipient: userId,
+        title: "Task Assigned",
+        message: `You have been assigned to the task: ${updated.subject}`,
+        type: "task",
+        relatedId: updated._id
+      }));
+      await Notification.insertMany(notifications);
+    }
+
     return res.status(200).json({ status: "Success", message: "Task updated successfully", data: updated });
   } catch (error) {
     (req.files || []).forEach((f) => deleteUploadedFile("images/TaskAttachments", f.filename));
@@ -335,6 +369,38 @@ exports.deleteTask = async (req, res) => {
     return res.status(200).json({ status: "Success", message: "Task deleted successfully" });
   } catch (error) {
     return res.status(404).json({ status: "Fail", message: error.message });
+  }
+};
+
+exports.getTodayTasks = async (req, res) => {
+  try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const tasks = await Task.find({
+      assignedUsers: req.user._id,
+      $or: [
+        { startDate: { $gte: todayStart, $lte: todayEnd } },
+        { endDate: { $gte: todayStart, $lte: todayEnd } },
+        { 
+          $and: [
+            { startDate: { $lte: todayStart } },
+            { endDate: { $gte: todayEnd } }
+          ]
+        }
+      ]
+    })
+    .populate("taskStatus")
+    .sort({ priority: -1, createdAt: -1 });
+
+    return res.status(200).json({
+      status: "Success",
+      data: tasks
+    });
+  } catch (error) {
+    return res.status(500).json({ status: "Fail", message: error.message });
   }
 };
 exports.deleteAttachment = async (req, res) => {
