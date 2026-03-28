@@ -2,7 +2,7 @@ const Notification = require("../model/notification");
 
 exports.getMyNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ recipient: req.user._id })
+    const notifications = await Notification.find({ recipient: req.user._id,isRead:false })
       .sort({ createdAt: -1 })
       .limit(50); // Get latest 50
 
