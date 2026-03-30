@@ -34,7 +34,9 @@ exports.createLead = async (req, res) => {
         title: "New Lead Assigned",
         message: `You have been assigned to a new lead: ${leadDetails.fullName}`,
         type: "lead",
-        relatedId: leadDetails._id
+        relatedId: leadDetails._id,
+        isRead: false,
+        createdAt: new Date().toISOString()
       });
     }
 
@@ -300,7 +302,9 @@ exports.leadUpdate = async (req, res) => {
         title: "Lead Assigned",
         message: `You have been assigned to the lead: ${updatedLeads.fullName}`,
         type: "lead",
-        relatedId: updatedLeads._id
+        relatedId: updatedLeads._id,
+        isRead: false,
+        createdAt: new Date().toISOString()
       });
     }
     return res.status(200).json({

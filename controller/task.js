@@ -42,16 +42,18 @@ exports.createTask = async (req, res) => {
           title: "New Task Assigned",
           message: `You have been assigned to a new task: ${task.subject}`,
           type: "task",
-          relatedId: task._id
+          relatedId: task._id,
+          isRead: false,
+          createdAt: new Date().toISOString()
         }));
       if (notifications.length > 0) {
-        await Notification.insertMany(notifications);
+        const createdNotifications = await Notification.insertMany(notifications);
         
         // Emit Socket Event
         const { getIO } = require("../utils/socket");
         try {
           const io = getIO();
-          notifications.forEach(notif => {
+          createdNotifications.forEach(notif => {
             io.to(notif.recipient.toString()).emit('new_task_assigned', notif);
           });
         } catch(err) {
@@ -156,15 +158,17 @@ exports.updateTask = async (req, res) => {
         title: "Task Assigned",
         message: `You have been assigned to the task: ${updated.subject}`,
         type: "task",
-        relatedId: updated._id
+        relatedId: updated._id,
+        isRead: false,
+        createdAt: new Date().toISOString()
       }));
-      await Notification.insertMany(notifications);
+      const createdNotifications = await Notification.insertMany(notifications);
 
       // Emit Socket Event
       const { getIO } = require("../utils/socket");
       try {
         const io = getIO();
-        notifications.forEach(notif => {
+        createdNotifications.forEach(notif => {
           io.to(notif.recipient.toString()).emit('new_task_assigned', notif);
         });
       } catch(err) {
