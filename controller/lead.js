@@ -461,6 +461,75 @@ exports.fetchLeadsForKanban = async (req, res) => {
   }
 };
 
+exports.fetchKanbanLeadsByStatus = async (req, res) => {
+  try {
+    const { statusId, search, source, staff, date, page = 1, limit = 10 } = req.query;
+    const match = { leadStatus: statusId };
+    const myOnly = req.query.my === 'true';
+
+    if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
+      match.assignedTo = req.user._id;
+    }
+
+    if (search) {
+      match.$or = [
+        { fullName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+        { companyName: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    if (source) {
+      const sourceArr = source.split(',').filter(s => s.trim());
+      if (sourceArr.length === 1) match.leadSource = sourceArr[0];
+      else if (sourceArr.length > 1) match.leadSource = { $in: sourceArr };
+    }
+
+    if (staff) {
+      const staffArr = staff.split(',').filter(s => s.trim());
+      if (staffArr.length === 1) match.assignedTo = staffArr[0];
+      else if (staffArr.length > 1) match.assignedTo = { $in: staffArr };
+    }
+
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+      match.createdAt = { $gte: start, $lte: end };
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const leads = await LEAD.find(match)
+      .populate("leadStatus")
+      .populate("leadSource")
+      .populate("leadLabel")
+      .populate("assignedTo")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await LEAD.countDocuments(match);
+
+    return res.status(200).json({
+      status: "Success",
+      data: leads,
+      pagination: {
+        totalRecords: total,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        limit: parseInt(limit),
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "Fail",
+      message: error.message,
+    });
+  }
+};
+
 exports.updateKanbanStatus = async (req, res) => {
   try {
     const leadId = req.params.id;

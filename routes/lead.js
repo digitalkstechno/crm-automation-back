@@ -10,6 +10,7 @@ let {
   leadUpdate,
   leadDelete,
   fetchLeadsForKanban,
+  fetchKanbanLeadsByStatus,
   updateKanbanStatus,
   getKanbanCounts,
   getLeadCountSummary,
@@ -30,6 +31,7 @@ router.get("/my", authMiddleware, fetchMyLeads);
 router.get("/count-summary/my", authMiddleware, getMyLeadSummary);
 router.get("/", authMiddleware, leadReadScope(), fetchAllLeads);
 router.get("/kanban", authMiddleware, leadReadScope(), fetchLeadsForKanban);
+router.get("/kanban-status", authMiddleware, leadReadScope(), fetchKanbanLeadsByStatus);
 router.get(
   "/kanban-counts",
   authMiddleware,

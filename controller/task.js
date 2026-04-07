@@ -3,6 +3,46 @@ const TaskStatus = require("../model/taskStatus");
 const Notification = require("../model/notification");
 const { deleteUploadedFile } = require("../utils/fileHelper");
 
+// Fetch tasks for a specific Kanban column with pagination
+exports.fetchKanbanTasksByStatus = async (req, res) => {
+  try {
+    const { statusId, page = 1, limit = 10, search = "", my = "false" } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const myTasksOnly = my === "true";
+
+    const query = { taskStatus: statusId };
+    if (search) {
+      query.subject = { $regex: search, $options: "i" };
+    }
+    if (myTasksOnly) {
+      query.assignedUsers = req.user._id;
+    }
+
+    const totalItems = await Task.countDocuments(query);
+    const tasks = await Task.find(query)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 })
+      .populate("assignedUsers", "fullName email")
+      .populate("assignedTeams", "name")
+      .populate("createdBy", "fullName")
+      .populate("taskStatus");
+
+    return res.status(200).json({
+      status: "Success",
+      data: tasks,
+      pagination: {
+        totalItems,
+        totalPages: Math.ceil(totalItems / parseInt(limit)),
+        currentPage: parseInt(page),
+        limit: parseInt(limit),
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ status: "Fail", message: error.message });
+  }
+};
+
 exports.createTask = async (req, res) => {
   try {
     const { subject, description, startDate, endDate, taskStatus, priority } = req.body;
@@ -429,6 +469,7 @@ exports.getTodayTasks = async (req, res) => {
     return res.status(500).json({ status: "Fail", message: error.message });
   }
 };
+
 exports.deleteAttachment = async (req, res) => {
   try {
     const { id, attachmentId } = req.params;
