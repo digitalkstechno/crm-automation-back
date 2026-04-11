@@ -178,42 +178,42 @@ exports.handleSheetLead = async (req, res) => {
     // 1. Get default Lead Status
     let status = await LeadStatus.findOne({ name: { $regex: /Pending|New/i } });
     if (!status) status = await LeadStatus.findOne().sort({ order: 1 });
+    if (!status) {
+      status = await LeadStatus.create({ name: "New Lead", order: 1 });
+    }
 
     // 2. Get default Lead Source
     let source = await LeadSource.findOne({ name: { $regex: /Meta|Facebook|Sheet/i } });
     if (!source) source = await LeadSource.findOne().sort({ order: 1 });
+    if (!source) {
+      source = await LeadSource.create({ name: "Meta Lead", order: 1 });
+    }
 
     // 3. Get default Staff to assign
     let staff = await Staff.findOne({ status: "active" });
+    if (!staff) staff = await Staff.findOne();
 
     // 4. Get default Lead Label (optional)
     let label = await LeadLabel.findOne({ name: { $regex: /New|Inquiry/i } });
     if (!label) label = await LeadLabel.findOne().sort({ order: 1 });
 
-    if (!status || !source || !staff) {
-      console.error("❌ [SHEET-LEAD] Missing metadata (Status, Source, or Staff) in DB.");
-      return res.status(400).json({
-        error: "Missing required Lead metadata (Status, Source, or Staff in DB)"
-      });
-    }
-
     const leadId = data.id || data.metaLeadId || ("SL_" + Date.now());
 
     const accountData = {
-      fullName: data.full_name || data.clientName || data.name || "Sheet Lead",
-      contact: (data.phone_number || data.mobile || data.contact || "0000000000").toString().replace(/\D/g, ""),
+      fullName: data.full_name || "Sheet Lead",
+      contact: (data.phone_number || "0000000000").toString().replace(/\D/g, ""),
       email: data.email || "",
-      companyName: data.company_name || data.companyName || "Sheet/Meta Lead",
-      address: data.city || data.address || "Sheet Entry",
+      companyName: data.form_name || "Meta Lead",
+      address: "Meta Lead Entry",
       leadStatus: status._id,
       leadSource: source._id,
-      assignedTo: staff._id,
+      assignedTo: staff ? staff._id : undefined,
       leadLabel: label ? [label._id] : [],
       metaLeadId: leadId,
       metaRawData: data,
-      priority: data.priority || "medium",
+      priority: "medium",
       isActive: true,
-      note: data.note || `Imported from Google Sheet at ${new Date().toISOString()}`
+      note: data["which_event_do_you_want_to_host_at_our_banquet?"] || "Imported from Meta/Sheet"
     };
 
     console.log("Creating lead with data:", accountData);
