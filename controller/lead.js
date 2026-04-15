@@ -2,7 +2,11 @@ const LEAD = require("../model/lead");
 const { deleteUploadedFile } = require("../utils/fileHelper");
 const { incrementCount, decrementCount } = require("../utils/leadCountHelper");
 const LeadStatus = require("../model/leadStatus");
+const LeadSource = require("../model/leadSources");
+const LeadLabel = require("../model/leadLabel");
 const Notification = require("../model/notification");
+const ExcelJS = require("exceljs");
+const fs = require("fs");
 exports.createLead = async (req, res) => {
   try {
     const leadData = { ...req.body };
@@ -86,23 +90,41 @@ exports.fetchAllLeads = async (req, res) => {
        STATUS FILTER
     ====================== */
     if (status) {
-      query.leadStatus = status; // expects ObjectId
+      const statusArr = status.split(',').map(s => s.trim()).filter(Boolean);
+      if (statusArr.length === 1) {
+        query.leadStatus = statusArr[0];
+      } else if (statusArr.length > 1) {
+        query.leadStatus = { $in: statusArr };
+      }
     }
 
     /* =====================
        SOURCE FILTER
     ====================== */
     if (source) {
-      query.leadSource = source; // expects ObjectId
+      const sourceArr = source.split(',').map(s => s.trim()).filter(Boolean);
+      if (sourceArr.length === 1) {
+        query.leadSource = sourceArr[0];
+      } else if (sourceArr.length > 1) {
+        query.leadSource = { $in: sourceArr };
+      }
     }
 
     /* =====================
        STAFF FILTER
     ====================== */
     if (staff) {
-      query.assignedTo = staff; // expects ObjectId
+      const staffArr = staff.split(',').map(s => s.trim()).filter(Boolean);
+      if (staffArr.length === 1) {
+        query.assignedTo = staffArr[0];
+      } else if (staffArr.length > 1) {
+        query.assignedTo = { $in: staffArr };
+      }
     }
 
+    /* =====================
+       DATE RANGE FILTER
+    ====================== */
     if (from || to) {
       const start = from ? new Date(from) : new Date(0);
       start.setHours(0, 0, 0, 0);
@@ -1283,3 +1305,492 @@ exports.deleteAttachment = async (req, res) => {
     return res.status(500).json({ status: "Fail", message: error.message });
   }
 };
+
+exports.exportLeadsToExcel = async (req, res) => {
+  try {
+    const { search = "", status, source, staff, from, to, date } = req.query;
+
+    const query = {};
+
+    // SEARCH
+    if (search) {
+      query.$or = [
+        { fullName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+        { companyName: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // STATUS
+    if (status) {
+      const arr = status.split(",").map((s) => s.trim()).filter(Boolean);
+      query.leadStatus = arr.length === 1 ? arr[0] : { $in: arr };
+    }
+
+    // SOURCE
+    if (source) {
+      const arr = source.split(",").map((s) => s.trim()).filter(Boolean);
+      query.leadSource = arr.length === 1 ? arr[0] : { $in: arr };
+    }
+
+    // STAFF
+    if (staff) {
+      const arr = staff.split(",").map((s) => s.trim()).filter(Boolean);
+      query.assignedTo = arr.length === 1 ? arr[0] : { $in: arr };
+    }
+
+    // DATE RANGE
+    if (from || to) {
+      const start = from ? new Date(from) : new Date(0);
+      start.setHours(0, 0, 0, 0);
+      const end = to ? new Date(to) : new Date();
+      end.setHours(23, 59, 59, 999);
+      query.createdAt = { $gte: start, $lte: end };
+    } else if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+      query.createdAt = { $gte: start, $lte: end };
+    }
+
+    // OWN SCOPE
+    if (req.leadScope === "own" && req.user && req.user._id) {
+      query.assignedTo = req.user._id;
+    }
+
+    const leads = await LEAD.find(query)
+      .sort({ createdAt: -1 })
+      .populate("leadStatus", "name")
+      .populate("leadSource", "name")
+      .populate("assignedTo", "fullName email");
+
+    // ── Build Excel ───────────────────────────────────────────────────────────
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "CRM System";
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet("Leads", {
+      pageSetup: { fitToPage: true, orientation: "landscape" },
+    });
+
+    // Column definitions
+    sheet.columns = [
+      { header: "S.No", key: "sno", width: 7 },
+      { header: "Full Name", key: "fullName", width: 22 },
+      { header: "Email", key: "email", width: 28 },
+      { header: "Phone", key: "phone", width: 16 },
+      { header: "Company", key: "company", width: 22 },
+      { header: "Lead Status", key: "status", width: 18 },
+      { header: "Lead Source", key: "source", width: 18 },
+      { header: "Assigned To", key: "assigned", width: 20 },
+      { header: "Priority", key: "priority", width: 12 },
+      { header: "Created At", key: "createdAt", width: 18 },
+    ];
+
+    // Style header row
+    const headerRow = sheet.getRow(1);
+    headerRow.eachCell((cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF1E40AF" }, // deep blue
+      };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+      cell.alignment = { vertical: "middle", horizontal: "center" };
+      cell.border = {
+        bottom: { style: "medium", color: { argb: "FF1E40AF" } },
+      };
+    });
+    headerRow.height = 28;
+
+    // Fill data rows
+    leads.forEach((lead, idx) => {
+      const row = sheet.addRow({
+        sno: idx + 1,
+        fullName: lead.fullName || "",
+        email: lead.email || "",
+        phone: lead.phone || "",
+        company: lead.companyName || "",
+        status: lead.leadStatus?.name || "",
+        source: lead.leadSource?.name || "",
+        assigned: lead.assignedTo?.fullName || "",
+        priority: lead.priority || "",
+        createdAt: lead.createdAt
+          ? new Date(lead.createdAt).toLocaleDateString("en-IN")
+          : "",
+      });
+
+      // Alternate row shading
+      if (idx % 2 === 0) {
+        row.eachCell((cell) => {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFF0F4FF" },
+          };
+        });
+      }
+
+      row.eachCell((cell) => {
+        cell.alignment = { vertical: "middle", horizontal: "left" };
+        cell.border = {
+          bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+        };
+      });
+      row.height = 22;
+    });
+
+    // Freeze header
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+
+    // Auto-filter
+    sheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: sheet.columns.length },
+    };
+
+    // Stream the file
+    const fileName = `leads_export_${Date.now()}.xlsx`;
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${fileName}"`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    return res.status(500).json({ status: "Fail", message: error.message });
+  }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// BULK IMPORT – Step 1: Download Template (with master-data dropdowns)
+// ────────────────────────────────────────────────────────────────────────────
+exports.downloadImportTemplate = async (req, res) => {
+  try {
+    const [statuses, sources, labels] = await Promise.all([
+      LeadStatus.find().select("name").lean(),
+      LeadSource.find().select("name").lean(),
+      LeadLabel.find().select("name").lean(),
+    ]);
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "CRM System";
+    workbook.created = new Date();
+
+    // ── Hidden master sheets (for dropdown source data) ────────────────────
+    const statusSheet = workbook.addWorksheet("__statuses", { state: "veryHidden" });
+    statusSheet.addRows(statuses.map((s) => [s.name]));
+
+    const sourceSheet = workbook.addWorksheet("__sources", { state: "veryHidden" });
+    sourceSheet.addRows(sources.map((s) => [s.name]));
+
+    const prioritySheet = workbook.addWorksheet("__priorities", { state: "veryHidden" });
+    prioritySheet.addRows([["high"], ["medium"], ["low"]]);
+
+    const labelSheet = workbook.addWorksheet("__labels", { state: "veryHidden" });
+    labelSheet.addRows(labels.map((l) => [l.name]));
+
+    // ── Main data sheet ───────────────────────────────────────────────────
+    const sheet = workbook.addWorksheet("Leads Import", {
+      pageSetup: { fitToPage: true, orientation: "landscape" },
+    });
+
+    // Column definitions – only core importable fields
+    const COLUMNS = [
+      { header: "Full Name *",     key: "fullName",    width: 24 },
+      { header: "Contact *",       key: "contact",     width: 18 },
+      { header: "Email",           key: "email",       width: 28 },
+      { header: "Company Name *",  key: "companyName",  width: 24 },
+      { header: "Address",         key: "address",     width: 28 },
+      { header: "Lead Status *",   key: "leadStatus",  width: 20 },
+      { header: "Lead Source *",   key: "leadSource",  width: 20 },
+      { header: "Priority",        key: "priority",    width: 14 },
+      { header: "Note",            key: "note",        width: 30 },
+    ];
+
+    sheet.columns = COLUMNS;
+
+    // Style header row
+    const headerRow = sheet.getRow(1);
+    headerRow.eachCell((cell) => {
+      cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E40AF" } };
+      cell.font   = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+      cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      cell.border = { bottom: { style: "medium", color: { argb: "FF1E40AF" } } };
+    });
+    headerRow.height = 30;
+
+    // Add a sample row
+    const sampleRow = sheet.addRow({
+      fullName:    "John Doe",
+      contact:     "9876543210",
+      email:       "john@example.com",
+      companyName: "Acme Corp",
+      address:     "123 Main St",
+      leadStatus:  statuses[0]?.name || "",
+      leadSource:  sources[0]?.name  || "",
+      priority:    "medium",
+      note:        "Sample note",
+    });
+    sampleRow.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEEF2FF" } };
+      cell.alignment = { vertical: "middle" };
+    });
+    sampleRow.height = 22;
+
+    // ── Data validation (dropdowns) for rows 2-1001 ───────────────────────
+    const COL = { leadStatus: 6, leadSource: 7, priority: 8 }; // 1-based col index
+
+    const statusFormula  = `__statuses!$A$1:$A$${statuses.length || 1}`;
+    const sourceFormula  = `__sources!$A$1:$A$${sources.length || 1}`;
+    const priorityFormula = `__priorities!$A$1:$A$3`;
+
+    for (let row = 2; row <= 1001; row++) {
+      sheet.getCell(row, COL.leadStatus).dataValidation = {
+        type: "list",
+        allowBlank: false,
+        formulae: [statusFormula],
+        showErrorMessage: true,
+        errorTitle: "Invalid Status",
+        error: "Please select a valid Lead Status from the dropdown.",
+      };
+      sheet.getCell(row, COL.leadSource).dataValidation = {
+        type: "list",
+        allowBlank: false,
+        formulae: [sourceFormula],
+        showErrorMessage: true,
+        errorTitle: "Invalid Source",
+        error: "Please select a valid Lead Source from the dropdown.",
+      };
+      sheet.getCell(row, COL.priority).dataValidation = {
+        type: "list",
+        allowBlank: true,
+        formulae: [priorityFormula],
+        showErrorMessage: true,
+        errorTitle: "Invalid Priority",
+        error: "Priority must be: high, medium, or low",
+      };
+    }
+
+    // Freeze header
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+
+    // Stream the file
+    const fileName = "leads_import_template.xlsx";
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    return res.status(500).json({ status: "Fail", message: error.message });
+  }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// BULK IMPORT – Step 2: Process uploaded Excel, validate & insert
+// Returns: { imported, failed } – and if failed > 0, sends back a failed-rows Excel
+// ────────────────────────────────────────────────────────────────────────────
+exports.bulkImportLeads = async (req, res) => {
+  const filePath = req.file?.path;
+  try {
+    if (!req.file) {
+      return res.status(400).json({ status: "Fail", message: "No file uploaded" });
+    }
+
+    // Load master data for name→ID lookup
+    const [statuses, sources] = await Promise.all([
+      LeadStatus.find().lean(),
+      LeadSource.find().lean(),
+    ]);
+
+    const statusMap = {};
+    statuses.forEach((s) => { statusMap[s.name.trim().toLowerCase()] = s._id; });
+
+    const sourceMap = {};
+    sources.forEach((s) => { sourceMap[s.name.trim().toLowerCase()] = s._id; });
+
+    // Parse Excel
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(filePath);
+    const sheet = workbook.getWorksheet("Leads Import");
+    if (!sheet) {
+      return res.status(400).json({ status: "Fail", message: "Invalid template: 'Leads Import' sheet not found" });
+    }
+
+    const VALID_PRIORITIES = ["high", "medium", "low"];
+
+    const successRows = [];
+    const failedRows  = []; // { rowNum, rowData, errors }
+
+    sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      if (rowNumber === 1) return; // skip header
+
+      const getCellValue = (col) => {
+        const cell = row.getCell(col);
+        const val  = cell.value;
+        if (val === null || val === undefined) return "";
+        if (typeof val === "object" && val.richText) {
+          return val.richText.map((rt) => rt.text).join("").trim();
+        }
+        return String(val).trim();
+      };
+
+      const fullName    = getCellValue(1);
+      const contact     = getCellValue(2);
+      const email       = getCellValue(3);
+      const companyName = getCellValue(4);
+      const address     = getCellValue(5);
+      const statusName  = getCellValue(6);
+      const sourceName  = getCellValue(7);
+      const priority    = getCellValue(8).toLowerCase() || "medium";
+      const note        = getCellValue(9);
+
+      // Skip completely empty rows
+      if (!fullName && !contact && !companyName && !statusName && !sourceName) return;
+
+      const errors = [];
+
+      if (!fullName)    errors.push("Full Name is required");
+      if (!contact)     errors.push("Contact is required");
+      if (!companyName) errors.push("Company Name is required");
+
+      const statusId = statusName ? statusMap[statusName.toLowerCase()] : null;
+      if (!statusName)  errors.push("Lead Status is required");
+      else if (!statusId) errors.push(`Lead Status '${statusName}' not found in master`);
+
+      const sourceId = sourceName ? sourceMap[sourceName.toLowerCase()] : null;
+      if (!sourceName)  errors.push("Lead Source is required");
+      else if (!sourceId) errors.push(`Lead Source '${sourceName}' not found in master`);
+
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push("Invalid email format");
+      }
+
+      if (priority && !VALID_PRIORITIES.includes(priority)) {
+        errors.push(`Priority must be high / medium / low (got '${priority}')`);
+      }
+
+      if (errors.length > 0) {
+        failedRows.push({ rowNumber, fullName, contact, email, companyName, address, statusName, sourceName, priority, note, errors: errors.join(" | ") });
+      } else {
+        successRows.push({ fullName, contact, email: email || undefined, companyName, address: address || undefined, leadStatus: statusId, leadSource: sourceId, priority: priority || "medium", note: note || undefined });
+      }
+    });
+
+    // Bulk insert successful rows
+    let imported = 0;
+    const insertErrors = [];
+    for (const leadData of successRows) {
+      try {
+        const lead = await LEAD.create(leadData);
+        await incrementCount({ statusId: lead.leadStatus, sourceId: lead.leadSource });
+        imported++;
+      } catch (err) {
+        // Move to failed if DB validation fails (e.g. duplicate metaLeadId)
+        insertErrors.push({ ...leadData, errors: err.message });
+      }
+    }
+
+    // Merge DB insert errors into failedRows
+    const allFailed = [
+      ...failedRows,
+      ...insertErrors.map((r) => ({
+        rowNumber: "DB",
+        fullName: r.fullName,
+        contact: r.contact,
+        email: r.email || "",
+        companyName: r.companyName,
+        address: r.address || "",
+        statusName: r.leadStatus?.toString() || "",
+        sourceName: r.leadSource?.toString() || "",
+        priority: r.priority,
+        note: r.note || "",
+        errors: r.errors,
+      })),
+    ];
+
+    // Clean up uploaded temp file
+    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+    // If there are failed rows, return them as Excel
+    if (allFailed.length > 0) {
+      const failWb   = new ExcelJS.Workbook();
+      const failSheet = failWb.addWorksheet("Failed Leads");
+
+      failSheet.columns = [
+        { header: "Row #",          key: "rowNumber",   width: 8  },
+        { header: "Full Name",      key: "fullName",    width: 22 },
+        { header: "Contact",        key: "contact",     width: 16 },
+        { header: "Email",          key: "email",       width: 26 },
+        { header: "Company Name",   key: "companyName", width: 22 },
+        { header: "Address",        key: "address",     width: 26 },
+        { header: "Lead Status",    key: "statusName",  width: 18 },
+        { header: "Lead Source",    key: "sourceName",  width: 18 },
+        { header: "Priority",       key: "priority",    width: 12 },
+        { header: "Note",           key: "note",        width: 28 },
+        { header: "Failure Reason", key: "errors",      width: 50 },
+      ];
+
+      // Style header
+      const hRow = failSheet.getRow(1);
+      hRow.eachCell((cell) => {
+        cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDC2626" } };
+        cell.font   = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      });
+      hRow.height = 28;
+
+      allFailed.forEach((f) => {
+        const r = failSheet.addRow({
+          rowNumber: f.rowNumber,
+          fullName:  f.fullName,
+          contact:   f.contact,
+          email:     f.email,
+          companyName: f.companyName,
+          address:   f.address,
+          statusName: f.statusName,
+          sourceName: f.sourceName,
+          priority:  f.priority,
+          note:      f.note,
+          errors:    f.errors,
+        });
+        r.eachCell((cell) => {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF1F2" } };
+          cell.alignment = { vertical: "middle" };
+        });
+        // Highlight error column in red
+        r.getCell(11).font = { color: { argb: "FFDC2626" }, bold: true };
+        r.height = 20;
+      });
+
+      failSheet.views = [{ state: "frozen", ySplit: 1 }];
+
+      // Add summary at top
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="failed_leads_${Date.now()}.xlsx"`);
+      res.setHeader("X-Import-Imported", String(imported));
+      res.setHeader("X-Import-Failed",   String(allFailed.length));
+      await failWb.xlsx.write(res);
+      return res.end();
+    }
+
+    // All rows succeeded
+    return res.status(200).json({
+      status: "Success",
+      message: `${imported} lead(s) imported successfully`,
+      data: { imported, failed: 0 },
+    });
+  } catch (error) {
+    if (filePath && fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath); } catch (_) {}
+    }
+    return res.status(500).json({ status: "Fail", message: error.message });
+  }
+};

@@ -1,7 +1,10 @@
 var express = require("express");
 var router = express.Router();
+const multer = require("multer");
 const createUploader = require("../utils/multer");
 const upload = createUploader("images/LeadAttachment");
+// Temp storage for bulk import files (memory or temp disk)
+const importUpload = multer({ dest: require("os").tmpdir() });
 let {
   createLead,
   fetchAllLeads,
@@ -22,6 +25,9 @@ let {
   getWonLeads,
   getLostLeads,
   deleteAttachment,
+  exportLeadsToExcel,
+  downloadImportTemplate,
+  bulkImportLeads,
 } = require("../controller/lead");
 const authMiddleware = require("../middleware/auth");
 const { authorize, leadReadScope } = require("../middleware/permissions");
@@ -68,6 +74,9 @@ router.get(
 );
 router.get("/won", authMiddleware, leadReadScope(), getWonLeads);
 router.get("/lost", authMiddleware, leadReadScope(), getLostLeads);
+router.get("/export", authMiddleware, leadReadScope(), exportLeadsToExcel);
+router.get("/import-template", authMiddleware, authorize("lead", "create"), downloadImportTemplate);
+router.post("/bulk-import", authMiddleware, authorize("lead", "create"), importUpload.single("file"), bulkImportLeads);
 router.get("/:id", authMiddleware, leadReadScope(), fetchLeadById);
 router.put(
   "/:id/kanban-status",
