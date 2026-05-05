@@ -175,20 +175,28 @@ exports.handleSheetLead = async (req, res) => {
     const data = req.body;
     console.log("Sheet Lead Data received:", data);
 
-    // 1. Get default Lead Status
-    let status = await LeadStatus.findOne({ name: { $regex: /Pending|New/i } });
+    // 1. Get Lead Status
+    // Try to match lead_status from sheet, fallback to "New Lead" or first status
+    let status;
+    const sheetStatus = data.lead_status || data.status;
+    if (sheetStatus) {
+      status = await LeadStatus.findOne({ name: { $regex: new RegExp(`^${sheetStatus}$`, 'i') } });
+    }
+    if (!status) status = await LeadStatus.findOne({ name: { $regex: /New Lead|New|Pending/i } });
     if (!status) status = await LeadStatus.findOne().sort({ order: 1 });
 
-    // 2. Get default Lead Source
-    let source = await LeadSource.findOne({ name: { $regex: /Meta|Facebook|Sheet/i } });
+    // 2. Get Lead Source
+    // Use platform from sheet if available, fallback to "Meta" or "Sheet"
+    let source;
+    const platform = data.platform || "";
+    if (platform) {
+      source = await LeadSource.findOne({ name: { $regex: new RegExp(`^${platform}$`, 'i') } });
+    }
+    if (!source) source = await LeadSource.findOne({ name: { $regex: /Meta|Facebook|Instagram|Sheet/i } });
     if (!source) source = await LeadSource.findOne().sort({ order: 1 });
 
     // 3. Get default Staff to assign
     let staff = await Staff.findOne({ status: "active" });
-
-    // 4. Get default Lead Label (optional)
-    let label = await LeadLabel.findOne({ name: { $regex: /New|Inquiry/i } });
-    if (!label) label = await LeadLabel.findOne().sort({ order: 1 });
 
     if (!status || !source || !staff) {
       console.error("❌ [SHEET-LEAD] Missing metadata (Status, Source, or Staff) in DB.");
@@ -199,26 +207,37 @@ exports.handleSheetLead = async (req, res) => {
 
     const leadId = data.id || data.metaLeadId || ("SL_" + Date.now());
 
+    // Map phone, removing any non-numeric chars (handles "p:9328268532")
+    let contact = (data.phone || data.phone_number || data.mobile || data.contact || "0000000000").toString().replace(/\D/g, "");
+    if (contact.length === 10) contact = "91" + contact;
+
+    // Build Note from custom fields
+    let noteParts = [];
+    if (data.note) noteParts.push(data.note);
+    if (data["are_you_an_exporter?"]) noteParts.push(`Exporter: ${data["are_you_an_exporter?"]}`);
+    if (data["looking_for_government_benefits?_"]) noteParts.push(`Gov Benefits: ${data["looking_for_government_benefits?_"]}`);
+    if (data.form_name) noteParts.push(`Form: ${data.form_name}`);
+    if (data.campaign_name) noteParts.push(`Campaign: ${data.campaign_name}`);
+    
     const accountData = {
-      fullName: data.full_name || data.clientName || data.name || "Sheet Lead",
-      contact: (data.phone_number || data.mobile || data.contact || "0000000000").toString().replace(/\D/g, ""),
+      fullName: data.full_name || data.fullName || data.clientName || data.name || "Sheet Lead",
+      contact: contact,
       email: data.email || "",
-      companyName: data.company_name || data.companyName || "Sheet/Meta Lead",
+      companyName: data.company_name || data.companyName || data.form_name || data.campaign_name || "Sheet/Meta Lead",
       address: data.city || data.address || "Sheet Entry",
       leadStatus: status._id,
       leadSource: source._id,
       assignedTo: staff._id,
-      leadLabel: label ? [label._id] : [],
       metaLeadId: leadId,
       metaRawData: data,
       priority: data.priority || "medium",
       isActive: true,
-      note: data.note || `Imported from Google Sheet at ${new Date().toISOString()}`
+      note: noteParts.join(" | ") || `Imported from Sheet at ${new Date().toISOString()}`
     };
 
     console.log("Creating lead with data:", accountData);
 
-    // duplicate check
+    // duplicate check by metaLeadId
     const existingLead = await Lead.findOne({
       metaLeadId: leadId
     });
