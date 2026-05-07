@@ -186,12 +186,28 @@ exports.handleSheetLead = async (req, res) => {
     if (!status) status = await LeadStatus.findOne().sort({ order: 1 });
 
     // 2. Get Lead Source
-    // Use platform from sheet if available, fallback to "Meta" or "Sheet"
+    // Use platform from sheet, map ig/fb to full names, and create if doesn't exist
+    let platform = data.platform || "";
+    if (platform.toLowerCase() === "ig") platform = "Instagram";
+    else if (platform.toLowerCase() === "fb") platform = "Facebook";
+
     let source;
-    const platform = data.platform || "";
     if (platform) {
       source = await LeadSource.findOne({ name: { $regex: new RegExp(`^${platform}$`, 'i') } });
+      
+      // If platform is provided but not found in DB, create it automatically
+      if (!source) {
+        const lastSource = await LeadSource.findOne().sort({ order: -1 });
+        const nextOrder = lastSource ? (lastSource.order || 0) + 1 : 1;
+        source = await LeadSource.create({ 
+          name: platform.charAt(0).toUpperCase() + platform.slice(1).toLowerCase(), 
+          order: nextOrder 
+        });
+        console.log(`Created new Lead Source: ${source.name}`);
+      }
     }
+
+    // Fallback if no platform was provided or found/created
     if (!source) source = await LeadSource.findOne({ name: { $regex: /Meta|Facebook|Instagram|Sheet/i } });
     if (!source) source = await LeadSource.findOne().sort({ order: 1 });
 
