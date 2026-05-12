@@ -3,6 +3,12 @@ const TaskStatus = require("../model/taskStatus");
 const Notification = require("../model/notification");
 const { deleteUploadedFile } = require("../utils/fileHelper");
 
+const sanitizeObjectId = (id) => {
+  if (id === "" || id === "null" || id === "undefined" || id === null) return null;
+  return id;
+};
+
+
 // Fetch tasks for a specific Kanban column with pagination
 exports.fetchKanbanTasksByStatus = async (req, res) => {
   try {
@@ -68,7 +74,7 @@ exports.createTask = async (req, res) => {
       assignedTeams: parseIds(req.body.assignedTeams),
       attachments,
       createdBy: req.user?._id,
-      taskStatus: taskStatus || null,
+      taskStatus: sanitizeObjectId(taskStatus),
     };
 
     const task = await Task.create(taskData);
@@ -173,7 +179,7 @@ exports.updateTask = async (req, res) => {
 
     // Handle status explicitly if provided
     if (req.body.taskStatus !== undefined) {
-      updateData.taskStatus = req.body.taskStatus;
+      updateData.taskStatus = sanitizeObjectId(req.body.taskStatus);
     }
 
     if (req.files?.length) {

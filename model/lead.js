@@ -6,12 +6,10 @@ const LeadSchema = new Schema(
   {
     fullName: {
       type: String,
-      required: true,
     },
 
     contact: {
       type: String,
-      required: true,
     },
 
     email: {
@@ -21,7 +19,6 @@ const LeadSchema = new Schema(
 
     companyName: {
       type: String,
-      required: true,
     },
 
     address: {
@@ -31,13 +28,11 @@ const LeadSchema = new Schema(
     leadStatus: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "leadStatus",
-      required: true,
     },
 
     leadSource: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "leadSource",
-      required: true,
     },
 
     assignedTo: {

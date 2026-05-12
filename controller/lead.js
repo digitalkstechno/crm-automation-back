@@ -7,6 +7,12 @@ const LeadLabel = require("../model/leadLabel");
 const Notification = require("../model/notification");
 const ExcelJS = require("exceljs");
 const fs = require("fs");
+
+const sanitizeObjectId = (id) => {
+  if (id === "" || id === "null" || id === "undefined" || id === null) return undefined;
+  return id;
+};
+
 exports.createLead = async (req, res) => {
   try {
     const leadData = { ...req.body };
@@ -16,6 +22,12 @@ exports.createLead = async (req, res) => {
       leadData.leadLabel = Array.isArray(req.body["leadLabel[]"]) ? req.body["leadLabel[]"] : [req.body["leadLabel[]"]];
       delete leadData["leadLabel[]"];
     }
+
+    // Sanitize ObjectIds
+    leadData.leadStatus = sanitizeObjectId(leadData.leadStatus);
+    leadData.leadSource = sanitizeObjectId(leadData.leadSource);
+    leadData.assignedTo = sanitizeObjectId(leadData.assignedTo);
+
 
     if (req.files && req.files.length > 0) {
       leadData.attachments = req.files.map((el) => ({
@@ -241,6 +253,12 @@ exports.leadUpdate = async (req, res) => {
       updateData.leadLabel = Array.isArray(req.body["leadLabel[]"]) ? req.body["leadLabel[]"] : [req.body["leadLabel[]"]];
       delete updateData["leadLabel[]"];
     }
+
+    // Sanitize ObjectIds
+    updateData.leadStatus = sanitizeObjectId(updateData.leadStatus);
+    updateData.leadSource = sanitizeObjectId(updateData.leadSource);
+    updateData.assignedTo = sanitizeObjectId(updateData.assignedTo);
+
 
     let currentAttachments = [...(oldLeads.attachments || [])];
 
