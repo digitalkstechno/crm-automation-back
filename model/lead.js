@@ -90,6 +90,10 @@ const LeadSchema = new Schema(
     },
     metaRawData: {
       type: Object
+    },
+    paymentAmount: {
+      type: Number,
+      default: 0,
     }
   },
   {

@@ -37,7 +37,7 @@ exports.fetchAllLeadStatus = async (req, res) => {
       const StatusData = await LEADSTATUS.find(query)
         .skip(skip)
         .limit(limit)
-        .sort({ createdAt: -1 });
+        .sort({ order: 1 });
 
       return res.status(200).json({
         status: "Success",
@@ -52,7 +52,7 @@ exports.fetchAllLeadStatus = async (req, res) => {
       });
     } else {
       // 👉 No pagination → return all data
-      const StatusData = await LEADSTATUS.find(query).sort({ createdAt: -1 });
+      const StatusData = await LEADSTATUS.find(query).sort({ order: 1 });
 
       return res.status(200).json({
         status: "Success",

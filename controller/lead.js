@@ -459,7 +459,7 @@ exports.fetchLeadsForKanban = async (req, res) => {
       match.createdAt = { $gte: start, $lte: end };
     }
 
-    const allStatuses = await LeadStatus.find();
+    const allStatuses = await LeadStatus.find().sort({ order: 1 });
 
     // If statuses are selected, only return those statuses
     const statusesToFetch = status
@@ -695,9 +695,9 @@ exports.getLeadCountSummary = async (req, res) => {
       59,
     );
 
-    const allStatuses = await LeadStatus.find().select("_id name");
+    const allStatuses = await LeadStatus.find().select("_id name").sort({ order: 1 });
 
-    const { search, source, staff, date } = req.query;
+    const { search, source, staff, date, from, to } = req.query;
 
     const baseMatch = {};
     const myOnly = req.query.my === 'true';
@@ -736,8 +736,16 @@ exports.getLeadCountSummary = async (req, res) => {
       }
     }
 
-    // 🔥 DATE FILTER
-    if (date) {
+    // 🔥 DATE RANGE FILTER
+    if (from || to) {
+      const start = from ? new Date(from) : new Date(0);
+      start.setHours(0, 0, 0, 0);
+
+      const end = to ? new Date(to) : new Date();
+      end.setHours(23, 59, 59, 999);
+
+      baseMatch.createdAt = { $gte: start, $lte: end };
+    } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
@@ -775,12 +783,23 @@ exports.getLeadCountSummary = async (req, res) => {
               },
             },
           ].filter(Boolean),
+          
+          totalRevenue: [
+            Object.keys(baseMatch).length > 0 ? { $match: baseMatch } : null,
+            {
+              $group: {
+                _id: null,
+                total: { $sum: "$paymentAmount" },
+              },
+            },
+          ].filter(Boolean),
         },
       },
     ]);
 
     const totalLeads = counts[0]?.totalLeads[0]?.count || 0;
     const monthlyLeads = counts[0]?.monthlyLeads[0]?.count || 0;
+    const totalRevenue = counts[0]?.totalRevenue[0]?.total || 0;
     const statusWiseRaw = counts[0]?.statusWise || [];
 
     const statusWiseCounts = allStatuses.map((status) => {
@@ -800,6 +819,7 @@ exports.getLeadCountSummary = async (req, res) => {
       data: {
         totalLeads,
         currentMonthLeads: monthlyLeads,
+        totalRevenue,
         statusWiseCounts,
       },
     });
