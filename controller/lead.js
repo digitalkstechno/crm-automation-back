@@ -167,7 +167,7 @@ exports.fetchAllLeads = async (req, res) => {
     const LeadData = await LEAD.find(query)
       .skip(skip)
       .limit(limit)
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: 1 })
       .populate("leadStatus")
       .populate("leadSource")
       .populate("leadLabel")
@@ -477,7 +477,7 @@ exports.fetchLeadsForKanban = async (req, res) => {
           .populate("leadSource")
           .populate("leadLabel")
           .populate("assignedTo")
-          .sort({ createdAt: -1 })
+          .sort({ updatedAt: 1 })
           .limit(10);
 
         return {
@@ -546,7 +546,7 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
       .populate("leadSource")
       .populate("leadLabel")
       .populate("assignedTo")
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: 1 })
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -1187,7 +1187,7 @@ exports.getWonLeads = async (req, res) => {
       .populate("leadSource")
       .populate("assignedTo")
       .populate("leadLabel")
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: 1 })
       .skip(skip)
       .limit(limit);
 
@@ -1282,7 +1282,7 @@ exports.getLostLeads = async (req, res) => {
       .populate("leadSource")
       .populate("assignedTo")
       .populate("leadLabel")
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: 1 })
       .skip(skip)
       .limit(limit);
 
@@ -1399,7 +1399,7 @@ exports.exportLeadsToExcel = async (req, res) => {
     }
 
     const leads = await LEAD.find(query)
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: 1 })
       .populate("leadStatus", "name")
       .populate("leadSource", "name")
       .populate("assignedTo", "fullName email");
