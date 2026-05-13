@@ -92,7 +92,7 @@ exports.fetchAllLeads = async (req, res) => {
       query.$or = [
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
+        { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
         { priority: { $regex: search, $options: "i" } },
       ];
@@ -414,7 +414,7 @@ exports.fetchLeadsForKanban = async (req, res) => {
       match.$or = [
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
+        { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
         { priority: { $regex: search, $options: "i" } },
       ];
@@ -515,7 +515,7 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
       match.$or = [
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
+        { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
       ];
     }
@@ -618,7 +618,7 @@ exports.getKanbanCounts = async (req, res) => {
       match.$or = [
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
+        { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
         { priority: { $regex: search, $options: "i" } },
       ];
@@ -710,7 +710,7 @@ exports.getLeadCountSummary = async (req, res) => {
       baseMatch.$or = [
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
+        { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
         { priority: { $regex: search, $options: "i" } },
       ];
