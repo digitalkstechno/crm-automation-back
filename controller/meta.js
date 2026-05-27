@@ -178,24 +178,23 @@ exports.handleSheetLead = async (req, res) => {
     // 1. Get default Lead Status
     let status = await LeadStatus.findOne({ name: { $regex: /Pending|New/i } });
     if (!status) status = await LeadStatus.findOne().sort({ order: 1 });
+    if (!status) {
+      status = await LeadStatus.create({ name: "New Lead", order: 1 });
+    }
 
     // 2. Get default Lead Source
     let source = await LeadSource.findOne({ name: { $regex: /Meta|Facebook|Sheet/i } });
     if (!source) source = await LeadSource.findOne().sort({ order: 1 });
+    if (!source) {
+      source = await LeadSource.create({ name: "Meta", order: 1 });
+    }
 
-    // 3. Get default Staff to assign
+    // 3. Get default Staff to assign (optional)
     let staff = await Staff.findOne({ status: "active" });
 
     // 4. Get default Lead Label (optional)
     let label = await LeadLabel.findOne({ name: { $regex: /New|Inquiry/i } });
     if (!label) label = await LeadLabel.findOne().sort({ order: 1 });
-
-    if (!status || !source || !staff) {
-      console.error("❌ [SHEET-LEAD] Missing metadata (Status, Source, or Staff) in DB.");
-      return res.status(400).json({
-        error: "Missing required Lead metadata (Status, Source, or Staff in DB)"
-      });
-    }
 
     const leadId = data.id || data.metaLeadId || ("SL_" + Date.now());
 
@@ -207,7 +206,7 @@ exports.handleSheetLead = async (req, res) => {
       address: data.city || data.address || "Sheet Entry",
       leadStatus: status._id,
       leadSource: source._id,
-      assignedTo: staff._id,
+      ...(staff && { assignedTo: staff._id }),
       leadLabel: label ? [label._id] : [],
       metaLeadId: leadId,
       metaRawData: data,
