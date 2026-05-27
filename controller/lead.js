@@ -783,7 +783,7 @@ exports.getLeadCountSummary = async (req, res) => {
               },
             },
           ].filter(Boolean),
-          
+
           totalRevenue: [
             Object.keys(baseMatch).length > 0 ? { $match: baseMatch } : null,
             {
@@ -1542,15 +1542,15 @@ exports.downloadImportTemplate = async (req, res) => {
 
     // Column definitions – only core importable fields
     const COLUMNS = [
-      { header: "Full Name *",     key: "fullName",    width: 24 },
-      { header: "Contact *",       key: "contact",     width: 18 },
-      { header: "Email",           key: "email",       width: 28 },
-      { header: "Company Name *",  key: "companyName",  width: 24 },
-      { header: "Address",         key: "address",     width: 28 },
-      { header: "Lead Status *",   key: "leadStatus",  width: 20 },
-      { header: "Lead Source *",   key: "leadSource",  width: 20 },
-      { header: "Priority",        key: "priority",    width: 14 },
-      { header: "Note",            key: "note",        width: 30 },
+      { header: "Full Name *", key: "fullName", width: 24 },
+      { header: "Contact *", key: "contact", width: 18 },
+      { header: "Email", key: "email", width: 28 },
+      { header: "Company Name *", key: "companyName", width: 24 },
+      { header: "Address", key: "address", width: 28 },
+      { header: "Lead Status *", key: "leadStatus", width: 20 },
+      { header: "Lead Source *", key: "leadSource", width: 20 },
+      { header: "Priority", key: "priority", width: 14 },
+      { header: "Note", key: "note", width: 30 },
     ];
 
     sheet.columns = COLUMNS;
@@ -1558,8 +1558,8 @@ exports.downloadImportTemplate = async (req, res) => {
     // Style header row
     const headerRow = sheet.getRow(1);
     headerRow.eachCell((cell) => {
-      cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E40AF" } };
-      cell.font   = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E40AF" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
       cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
       cell.border = { bottom: { style: "medium", color: { argb: "FF1E40AF" } } };
     });
@@ -1567,15 +1567,15 @@ exports.downloadImportTemplate = async (req, res) => {
 
     // Add a sample row
     const sampleRow = sheet.addRow({
-      fullName:    "John Doe",
-      contact:     "9876543210",
-      email:       "john@example.com",
+      fullName: "John Doe",
+      contact: "9876543210",
+      email: "john@example.com",
       companyName: "Acme Corp",
-      address:     "123 Main St",
-      leadStatus:  statuses[0]?.name || "",
-      leadSource:  sources[0]?.name  || "",
-      priority:    "medium",
-      note:        "Sample note",
+      address: "123 Main St",
+      leadStatus: statuses[0]?.name || "",
+      leadSource: sources[0]?.name || "",
+      priority: "medium",
+      note: "Sample note",
     });
     sampleRow.eachCell((cell) => {
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEEF2FF" } };
@@ -1586,8 +1586,8 @@ exports.downloadImportTemplate = async (req, res) => {
     // ── Data validation (dropdowns) for rows 2-1001 ───────────────────────
     const COL = { leadStatus: 6, leadSource: 7, priority: 8 }; // 1-based col index
 
-    const statusFormula  = `__statuses!$A$1:$A$${statuses.length || 1}`;
-    const sourceFormula  = `__sources!$A$1:$A$${sources.length || 1}`;
+    const statusFormula = `__statuses!$A$1:$A$${statuses.length || 1}`;
+    const sourceFormula = `__sources!$A$1:$A$${sources.length || 1}`;
     const priorityFormula = `__priorities!$A$1:$A$3`;
 
     for (let row = 2; row <= 1001; row++) {
@@ -1637,6 +1637,7 @@ exports.downloadImportTemplate = async (req, res) => {
 // ────────────────────────────────────────────────────────────────────────────
 exports.bulkImportLeads = async (req, res) => {
   const filePath = req.file?.path;
+  const assignedTo = sanitizeObjectId(req.body.assignedTo);
   try {
     if (!req.file) {
       return res.status(400).json({ status: "Fail", message: "No file uploaded" });
@@ -1665,14 +1666,14 @@ exports.bulkImportLeads = async (req, res) => {
     const VALID_PRIORITIES = ["high", "medium", "low"];
 
     const successRows = [];
-    const failedRows  = []; // { rowNum, rowData, errors }
+    const failedRows = []; // { rowNum, rowData, errors }
 
     sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       if (rowNumber === 1) return; // skip header
 
       const getCellValue = (col) => {
         const cell = row.getCell(col);
-        const val  = cell.value;
+        const val = cell.value;
         if (val === null || val === undefined) return "";
         if (typeof val === "object" && val.richText) {
           return val.richText.map((rt) => rt.text).join("").trim();
@@ -1680,31 +1681,31 @@ exports.bulkImportLeads = async (req, res) => {
         return String(val).trim();
       };
 
-      const fullName    = getCellValue(1);
-      const contact     = getCellValue(2);
-      const email       = getCellValue(3);
+      const fullName = getCellValue(1);
+      const contact = getCellValue(2);
+      const email = getCellValue(3);
       const companyName = getCellValue(4);
-      const address     = getCellValue(5);
-      const statusName  = getCellValue(6);
-      const sourceName  = getCellValue(7);
-      const priority    = getCellValue(8).toLowerCase() || "medium";
-      const note        = getCellValue(9);
+      const address = getCellValue(5);
+      const statusName = getCellValue(6);
+      const sourceName = getCellValue(7);
+      const priority = getCellValue(8).toLowerCase() || "medium";
+      const note = getCellValue(9);
 
       // Skip completely empty rows
       if (!fullName && !contact && !companyName && !statusName && !sourceName) return;
 
       const errors = [];
 
-      if (!fullName)    errors.push("Full Name is required");
-      if (!contact)     errors.push("Contact is required");
+      if (!fullName) errors.push("Full Name is required");
+      if (!contact) errors.push("Contact is required");
       if (!companyName) errors.push("Company Name is required");
 
       const statusId = statusName ? statusMap[statusName.toLowerCase()] : null;
-      if (!statusName)  errors.push("Lead Status is required");
+      if (!statusName) errors.push("Lead Status is required");
       else if (!statusId) errors.push(`Lead Status '${statusName}' not found in master`);
 
       const sourceId = sourceName ? sourceMap[sourceName.toLowerCase()] : null;
-      if (!sourceName)  errors.push("Lead Source is required");
+      if (!sourceName) errors.push("Lead Source is required");
       else if (!sourceId) errors.push(`Lead Source '${sourceName}' not found in master`);
 
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -1718,7 +1719,7 @@ exports.bulkImportLeads = async (req, res) => {
       if (errors.length > 0) {
         failedRows.push({ rowNumber, fullName, contact, email, companyName, address, statusName, sourceName, priority, note, errors: errors.join(" | ") });
       } else {
-        successRows.push({ fullName, contact, email: email || undefined, companyName, address: address || undefined, leadStatus: statusId, leadSource: sourceId, priority: priority || "medium", note: note || undefined });
+        successRows.push({ fullName, contact, email: email || undefined, companyName, address: address || undefined, leadStatus: statusId, leadSource: sourceId, priority: priority || "medium", note: note || undefined, assignedTo });
       }
     });
 
@@ -1759,28 +1760,28 @@ exports.bulkImportLeads = async (req, res) => {
 
     // If there are failed rows, return them as Excel
     if (allFailed.length > 0) {
-      const failWb   = new ExcelJS.Workbook();
+      const failWb = new ExcelJS.Workbook();
       const failSheet = failWb.addWorksheet("Failed Leads");
 
       failSheet.columns = [
-        { header: "Row #",          key: "rowNumber",   width: 8  },
-        { header: "Full Name",      key: "fullName",    width: 22 },
-        { header: "Contact",        key: "contact",     width: 16 },
-        { header: "Email",          key: "email",       width: 26 },
-        { header: "Company Name",   key: "companyName", width: 22 },
-        { header: "Address",        key: "address",     width: 26 },
-        { header: "Lead Status",    key: "statusName",  width: 18 },
-        { header: "Lead Source",    key: "sourceName",  width: 18 },
-        { header: "Priority",       key: "priority",    width: 12 },
-        { header: "Note",           key: "note",        width: 28 },
-        { header: "Failure Reason", key: "errors",      width: 50 },
+        { header: "Row #", key: "rowNumber", width: 8 },
+        { header: "Full Name", key: "fullName", width: 22 },
+        { header: "Contact", key: "contact", width: 16 },
+        { header: "Email", key: "email", width: 26 },
+        { header: "Company Name", key: "companyName", width: 22 },
+        { header: "Address", key: "address", width: 26 },
+        { header: "Lead Status", key: "statusName", width: 18 },
+        { header: "Lead Source", key: "sourceName", width: 18 },
+        { header: "Priority", key: "priority", width: 12 },
+        { header: "Note", key: "note", width: 28 },
+        { header: "Failure Reason", key: "errors", width: 50 },
       ];
 
       // Style header
       const hRow = failSheet.getRow(1);
       hRow.eachCell((cell) => {
-        cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDC2626" } };
-        cell.font   = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDC2626" } };
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
         cell.alignment = { vertical: "middle", horizontal: "center" };
       });
       hRow.height = 28;
@@ -1788,16 +1789,16 @@ exports.bulkImportLeads = async (req, res) => {
       allFailed.forEach((f) => {
         const r = failSheet.addRow({
           rowNumber: f.rowNumber,
-          fullName:  f.fullName,
-          contact:   f.contact,
-          email:     f.email,
+          fullName: f.fullName,
+          contact: f.contact,
+          email: f.email,
           companyName: f.companyName,
-          address:   f.address,
+          address: f.address,
           statusName: f.statusName,
           sourceName: f.sourceName,
-          priority:  f.priority,
-          note:      f.note,
-          errors:    f.errors,
+          priority: f.priority,
+          note: f.note,
+          errors: f.errors,
         });
         r.eachCell((cell) => {
           cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF1F2" } };
@@ -1814,7 +1815,7 @@ exports.bulkImportLeads = async (req, res) => {
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="failed_leads_${Date.now()}.xlsx"`);
       res.setHeader("X-Import-Imported", String(imported));
-      res.setHeader("X-Import-Failed",   String(allFailed.length));
+      res.setHeader("X-Import-Failed", String(allFailed.length));
       await failWb.xlsx.write(res);
       return res.end();
     }
@@ -1827,8 +1828,8 @@ exports.bulkImportLeads = async (req, res) => {
     });
   } catch (error) {
     if (filePath && fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); } catch (_) {}
+      try { fs.unlinkSync(filePath); } catch (_) { }
     }
     return res.status(500).json({ status: "Fail", message: error.message });
   }
-};
+};
