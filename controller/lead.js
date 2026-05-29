@@ -1833,3 +1833,48 @@ exports.bulkImportLeads = async (req, res) => {
     return res.status(500).json({ status: "Fail", message: error.message });
   }
 };
+
+exports.bulkAssignLeads = async (req, res) => {
+  try {
+    const { leadIds, staffId } = req.body;
+
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      throw new Error("No leads selected");
+    }
+
+    if (!staffId) {
+      throw new Error("No staff member selected");
+    }
+
+    const assignedTo = sanitizeObjectId(staffId);
+
+    // Update leads
+    const result = await LEAD.updateMany(
+      { _id: { $in: leadIds } },
+      { $set: { assignedTo: assignedTo } }
+    );
+
+    // Notifications
+    if (assignedTo && (!req.user || String(assignedTo) !== String(req.user._id))) {
+      await Notification.create({
+        recipient: assignedTo,
+        title: "Bulk Leads Assigned",
+        message: `You have been assigned to ${leadIds.length} leads.`,
+        type: "lead",
+        isRead: false,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    return res.status(200).json({
+      status: "Success",
+      message: `Successfully assigned ${result.modifiedCount} leads`,
+      data: result,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      status: "Fail",
+      message: error.message,
+    });
+  }
+};
