@@ -1,4 +1,6 @@
 const LEAD = require("../model/lead");
+const mongoose = require("mongoose");
+const STAFF = require("../model/staff");
 const { deleteUploadedFile } = require("../utils/fileHelper");
 const { incrementCount, decrementCount } = require("../utils/leadCountHelper");
 const LeadStatus = require("../model/leadStatus");
@@ -137,6 +139,9 @@ exports.fetchAllLeads = async (req, res) => {
     /* =====================
        DATE RANGE FILTER
     ====================== */
+    /* =====================
+       DATE RANGE FILTER
+    ====================== */
     if (from || to) {
       const start = from ? new Date(from) : new Date(0);
       start.setHours(0, 0, 0, 0);
@@ -155,8 +160,28 @@ exports.fetchAllLeads = async (req, res) => {
       query.createdAt = { $gte: start, $lte: end };
     }
 
+    // 🔥 SCOPE & PERMISSIONS
     if (req.leadScope === "own" && req.user && req.user._id) {
-      query.assignedTo = req.user._id;
+      // Find team members
+      const myTeams = req.user.teams || [];
+      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const teamMemberIds = teamMembers.map(m => m._id);
+
+      const allowedIds = [req.user._id, ...teamMemberIds];
+
+      if (query.assignedTo) {
+        // If filtering by staff, take intersection
+        if (query.assignedTo.$in) {
+          query.assignedTo.$in = query.assignedTo.$in.filter(id =>
+            allowedIds.some(aid => aid.toString() === id.toString())
+          );
+        } else {
+          const isAllowed = allowedIds.some(aid => aid.toString() === query.assignedTo.toString());
+          if (!isAllowed) query.assignedTo = { $in: [] }; // No match
+        }
+      } else {
+        query.assignedTo = { $in: allowedIds };
+      }
     }
 
     /* =====================
@@ -406,7 +431,10 @@ exports.fetchLeadsForKanban = async (req, res) => {
     const match = {};
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
-      match.assignedTo = req.user._id;
+      const myTeams = req.user.teams || [];
+      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const teamMemberIds = teamMembers.map(m => m._id);
+      match.assignedTo = { $in: [req.user._id, ...teamMemberIds] };
     }
 
     // 🔥 SEARCH FILTER
@@ -443,10 +471,15 @@ exports.fetchLeadsForKanban = async (req, res) => {
     // 🔥 STAFF FILTER (handle comma-separated values)
     if (staff) {
       const staffArr = staff.split(',').filter(s => s.trim());
-      if (staffArr.length === 1) {
-        match.assignedTo = staffArr[0];
-      } else if (staffArr.length > 1) {
-        match.assignedTo = { $in: staffArr };
+      const selectedIds = staffArr.map(id => id.trim());
+
+      if (match.assignedTo && match.assignedTo.$in) {
+        match.assignedTo.$in = selectedIds.filter(id =>
+          match.assignedTo.$in.some(aid => aid.toString() === id)
+        );
+      } else {
+        if (selectedIds.length === 1) match.assignedTo = selectedIds[0];
+        else match.assignedTo = { $in: selectedIds };
       }
     }
 
@@ -477,20 +510,19 @@ exports.fetchLeadsForKanban = async (req, res) => {
           .populate("leadSource")
           .populate("leadLabel")
           .populate("assignedTo")
-          .sort({ updatedAt: 1 })
-          .limit(10);
+          .sort({ updatedAt: -1 })
+          .limit(20); // Show more leads in kanban
 
         return {
-          statusId: status._id.toString(),
+          statusId: status._id,
           statusName: status.name,
-          leads: leads || [],
+          leads,
         };
       })
     );
 
     return res.status(200).json({
       status: "Success",
-      message: "Kanban leads fetched successfully",
       data: kanbanData,
     });
   } catch (error) {
@@ -504,11 +536,14 @@ exports.fetchLeadsForKanban = async (req, res) => {
 exports.fetchKanbanLeadsByStatus = async (req, res) => {
   try {
     const { statusId, search, source, staff, date, page = 1, limit = 10 } = req.query;
-    const match = { leadStatus: statusId };
+    const match = { leadStatus: new mongoose.Types.ObjectId(statusId) };
     const myOnly = req.query.my === 'true';
 
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
-      match.assignedTo = req.user._id;
+      const myTeams = req.user.teams || [];
+      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const teamMemberIds = teamMembers.map(m => m._id);
+      match.assignedTo = { $in: [req.user._id, ...teamMemberIds] };
     }
 
     if (search) {
@@ -521,15 +556,21 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
     }
 
     if (source) {
-      const sourceArr = source.split(',').filter(s => s.trim());
+      const sourceArr = source.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
       if (sourceArr.length === 1) match.leadSource = sourceArr[0];
       else if (sourceArr.length > 1) match.leadSource = { $in: sourceArr };
     }
 
     if (staff) {
-      const staffArr = staff.split(',').filter(s => s.trim());
-      if (staffArr.length === 1) match.assignedTo = staffArr[0];
-      else if (staffArr.length > 1) match.assignedTo = { $in: staffArr };
+      const staffArr = staff.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
+      if (match.assignedTo && match.assignedTo.$in) {
+        match.assignedTo.$in = staffArr.filter(id =>
+          match.assignedTo.$in.some(aid => aid.toString() === id.toString())
+        );
+      } else {
+        if (staffArr.length === 1) match.assignedTo = staffArr[0];
+        else match.assignedTo = { $in: staffArr };
+      }
     }
 
     if (date) {
@@ -610,7 +651,10 @@ exports.getKanbanCounts = async (req, res) => {
     const match = {};
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
-      match.assignedTo = req.user._id;
+      const myTeams = req.user.teams || [];
+      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const teamMemberIds = teamMembers.map(m => m._id);
+      match.assignedTo = { $in: [req.user._id, ...teamMemberIds].map(id => new mongoose.Types.ObjectId(id)) };
     }
 
     // 🔥 SEARCH FILTER
@@ -626,7 +670,7 @@ exports.getKanbanCounts = async (req, res) => {
 
     // 🔥 SOURCE FILTER (handle comma-separated values)
     if (source) {
-      const sourceArr = source.split(',').filter(s => s.trim());
+      const sourceArr = source.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
       if (sourceArr.length === 1) {
         match.leadSource = sourceArr[0];
       } else if (sourceArr.length > 1) {
@@ -636,11 +680,14 @@ exports.getKanbanCounts = async (req, res) => {
 
     // 🔥 STAFF FILTER (handle comma-separated values)
     if (staff) {
-      const staffArr = staff.split(',').filter(s => s.trim());
-      if (staffArr.length === 1) {
-        match.assignedTo = staffArr[0];
-      } else if (staffArr.length > 1) {
-        match.assignedTo = { $in: staffArr };
+      const staffArr = staff.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
+      if (match.assignedTo && match.assignedTo.$in) {
+        match.assignedTo.$in = staffArr.filter(id =>
+          match.assignedTo.$in.some(aid => aid.toString() === id.toString())
+        );
+      } else {
+        if (staffArr.length === 1) match.assignedTo = staffArr[0];
+        else match.assignedTo = { $in: staffArr };
       }
     }
 
@@ -697,12 +744,15 @@ exports.getLeadCountSummary = async (req, res) => {
 
     const allStatuses = await LeadStatus.find().select("_id name").sort({ order: 1 });
 
-    const { search, source, staff, date, from, to } = req.query;
+    const { search, status, source, staff, date, from, to } = req.query;
 
     const baseMatch = {};
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
-      baseMatch.assignedTo = req.user._id;
+      const myTeams = req.user.teams || [];
+      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const teamMemberIds = teamMembers.map(m => m._id);
+      baseMatch.assignedTo = { $in: [req.user._id, ...teamMemberIds].map(id => new mongoose.Types.ObjectId(id)) };
     }
 
     // 🔥 SEARCH FILTER
@@ -716,9 +766,19 @@ exports.getLeadCountSummary = async (req, res) => {
       ];
     }
 
+    // 🔥 STATUS FILTER (handle comma-separated values)
+    if (status) {
+      const statusArr = status.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
+      if (statusArr.length === 1) {
+        baseMatch.leadStatus = statusArr[0];
+      } else if (statusArr.length > 1) {
+        baseMatch.leadStatus = { $in: statusArr };
+      }
+    }
+
     // 🔥 SOURCE FILTER (handle comma-separated values)
     if (source) {
-      const sourceArr = source.split(',').filter(s => s.trim());
+      const sourceArr = source.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
       if (sourceArr.length === 1) {
         baseMatch.leadSource = sourceArr[0];
       } else if (sourceArr.length > 1) {
@@ -728,11 +788,14 @@ exports.getLeadCountSummary = async (req, res) => {
 
     // 🔥 STAFF FILTER (handle comma-separated values)
     if (staff) {
-      const staffArr = staff.split(',').filter(s => s.trim());
-      if (staffArr.length === 1) {
-        baseMatch.assignedTo = staffArr[0];
-      } else if (staffArr.length > 1) {
-        baseMatch.assignedTo = { $in: staffArr };
+      const staffArr = staff.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
+      if (baseMatch.assignedTo && baseMatch.assignedTo.$in) {
+        baseMatch.assignedTo.$in = staffArr.filter(id =>
+          baseMatch.assignedTo.$in.some(aid => aid.toString() === id.toString())
+        );
+      } else {
+        if (staffArr.length === 1) baseMatch.assignedTo = staffArr[0];
+        else baseMatch.assignedTo = { $in: staffArr };
       }
     }
 
@@ -1132,20 +1195,21 @@ exports.getWonLeads = async (req, res) => {
       });
     }
 
-    const query = {
-      leadStatus: wonStatus._id,
-    };
-
-    if (req.leadScope === "own" && req.user && req.user._id) {
-      query.assignedTo = req.user;
+    const match = {};
+    const myOnly = req.query.my === 'true';
+    if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
+      const myTeams = req.user.teams || [];
+      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const teamMemberIds = teamMembers.map(m => m._id);
+      match.assignedTo = { $in: [req.user._id, ...teamMemberIds].map(id => new mongoose.Types.ObjectId(id)) };
     }
 
     // 🔥 SEARCH FILTER
     if (search) {
-      query.$or = [
+      match.$or = [
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
+        { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
         { priority: { $regex: search, $options: "i" } },
       ];
@@ -1153,21 +1217,24 @@ exports.getWonLeads = async (req, res) => {
 
     // 🔥 SOURCE FILTER (handle comma-separated values)
     if (source) {
-      const sourceArr = source.split(',').filter(s => s.trim());
+      const sourceArr = source.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
       if (sourceArr.length === 1) {
-        query.leadSource = sourceArr[0];
+        match.leadSource = sourceArr[0];
       } else if (sourceArr.length > 1) {
-        query.leadSource = { $in: sourceArr };
+        match.leadSource = { $in: sourceArr };
       }
     }
 
     // 🔥 STAFF FILTER (handle comma-separated values)
     if (staff) {
-      const staffArr = staff.split(',').filter(s => s.trim());
-      if (staffArr.length === 1) {
-        query.assignedTo = staffArr[0];
-      } else if (staffArr.length > 1) {
-        query.assignedTo = { $in: staffArr };
+      const staffArr = staff.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
+      if (match.assignedTo && match.assignedTo.$in) {
+        match.assignedTo.$in = staffArr.filter(id =>
+          match.assignedTo.$in.some(aid => aid.toString() === id.toString())
+        );
+      } else {
+        if (staffArr.length === 1) match.assignedTo = staffArr[0];
+        else match.assignedTo = { $in: staffArr };
       }
     }
 
@@ -1395,7 +1462,23 @@ exports.exportLeadsToExcel = async (req, res) => {
 
     // OWN SCOPE
     if (req.leadScope === "own" && req.user && req.user._id) {
-      query.assignedTo = req.user._id;
+      const myTeams = req.user.teams || [];
+      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const teamMemberIds = teamMembers.map(m => m._id);
+      const allowedIds = [req.user._id, ...teamMemberIds];
+
+      if (query.assignedTo) {
+        if (query.assignedTo.$in) {
+          query.assignedTo.$in = query.assignedTo.$in.filter(id =>
+            allowedIds.some(aid => aid.toString() === id.toString())
+          );
+        } else {
+          const isAllowed = allowedIds.some(aid => aid.toString() === query.assignedTo.toString());
+          if (!isAllowed) query.assignedTo = { $in: [] };
+        }
+      } else {
+        query.assignedTo = { $in: allowedIds };
+      }
     }
 
     const leads = await LEAD.find(query)
