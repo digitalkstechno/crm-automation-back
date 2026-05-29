@@ -1355,7 +1355,7 @@ exports.exportLeadsToExcel = async (req, res) => {
       query.$or = [
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
+        { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
       ];
     }
@@ -1418,7 +1418,7 @@ exports.exportLeadsToExcel = async (req, res) => {
       { header: "S.No", key: "sno", width: 7 },
       { header: "Full Name", key: "fullName", width: 22 },
       { header: "Email", key: "email", width: 28 },
-      { header: "Phone", key: "phone", width: 16 },
+      { header: "Phone", key: "contact", width: 16 },
       { header: "Company", key: "company", width: 22 },
       { header: "Lead Status", key: "status", width: 18 },
       { header: "Lead Source", key: "source", width: 18 },
@@ -1449,7 +1449,7 @@ exports.exportLeadsToExcel = async (req, res) => {
         sno: idx + 1,
         fullName: lead.fullName || "",
         email: lead.email || "",
-        phone: lead.phone || "",
+        contact: lead.contact || "",
         company: lead.companyName || "",
         status: lead.leadStatus?.name || "",
         source: lead.leadSource?.name || "",
