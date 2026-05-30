@@ -2,6 +2,7 @@ const LEAD = require("../model/lead");
 const mongoose = require("mongoose");
 const STAFF = require("../model/staff");
 const { deleteUploadedFile } = require("../utils/fileHelper");
+const Team = require("../model/team");
 const { incrementCount, decrementCount } = require("../utils/leadCountHelper");
 const LeadStatus = require("../model/leadStatus");
 const LeadSource = require("../model/leadSources");
@@ -164,7 +165,9 @@ exports.fetchAllLeads = async (req, res) => {
     if (req.leadScope === "own" && req.user && req.user._id) {
       // Find team members
       const myTeams = req.user.teams || [];
-      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
       const teamMemberIds = teamMembers.map(m => m._id);
 
       const allowedIds = [req.user._id, ...teamMemberIds];
@@ -432,7 +435,9 @@ exports.fetchLeadsForKanban = async (req, res) => {
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       const myTeams = req.user.teams || [];
-      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
       const teamMemberIds = teamMembers.map(m => m._id);
       match.assignedTo = { $in: [req.user._id, ...teamMemberIds] };
     }
@@ -541,7 +546,9 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
 
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       const myTeams = req.user.teams || [];
-      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
       const teamMemberIds = teamMembers.map(m => m._id);
       match.assignedTo = { $in: [req.user._id, ...teamMemberIds] };
     }
@@ -652,7 +659,9 @@ exports.getKanbanCounts = async (req, res) => {
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       const myTeams = req.user.teams || [];
-      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
       const teamMemberIds = teamMembers.map(m => m._id);
       match.assignedTo = { $in: [req.user._id, ...teamMemberIds].map(id => new mongoose.Types.ObjectId(id)) };
     }
@@ -750,7 +759,9 @@ exports.getLeadCountSummary = async (req, res) => {
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       const myTeams = req.user.teams || [];
-      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
       const teamMemberIds = teamMembers.map(m => m._id);
       baseMatch.assignedTo = { $in: [req.user._id, ...teamMemberIds].map(id => new mongoose.Types.ObjectId(id)) };
     }
@@ -1199,7 +1210,9 @@ exports.getWonLeads = async (req, res) => {
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       const myTeams = req.user.teams || [];
-      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
       const teamMemberIds = teamMembers.map(m => m._id);
       match.assignedTo = { $in: [req.user._id, ...teamMemberIds].map(id => new mongoose.Types.ObjectId(id)) };
     }
@@ -1463,7 +1476,9 @@ exports.exportLeadsToExcel = async (req, res) => {
     // OWN SCOPE
     if (req.leadScope === "own" && req.user && req.user._id) {
       const myTeams = req.user.teams || [];
-      const teamMembers = await STAFF.find({ teams: { $in: myTeams } }).select("_id");
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
       const teamMemberIds = teamMembers.map(m => m._id);
       const allowedIds = [req.user._id, ...teamMemberIds];
 
