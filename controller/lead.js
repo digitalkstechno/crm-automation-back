@@ -30,7 +30,7 @@ exports.createLead = async (req, res) => {
     leadData.leadStatus = sanitizeObjectId(leadData.leadStatus);
     leadData.leadSource = sanitizeObjectId(leadData.leadSource);
     leadData.assignedTo = sanitizeObjectId(leadData.assignedTo);
-
+    leadData.priority = sanitizeObjectId(leadData.priority);
 
     if (req.files && req.files.length > 0) {
       leadData.attachments = req.files.map((el) => ({
@@ -210,6 +210,7 @@ exports.fetchAllLeads = async (req, res) => {
       .sort({ updatedAt: 1 })
       .populate("leadStatus")
       .populate("leadSource")
+      .populate("priority")
       .populate("assignedTo")
       .populate("followUps.staff", "fullName email");
 
@@ -243,6 +244,7 @@ exports.fetchLeadById = async (req, res) => {
     let leadData = await LEAD.findById(LeadId)
       .populate({ path: "leadStatus" })
       .populate({ path: "leadSource" })
+      .populate({ path: "priority" })
       .populate({ path: "assignedTo" })
       .populate({ path: "followUps.staff", select: "fullName email" });
     if (!leadData) {
@@ -296,7 +298,7 @@ exports.leadUpdate = async (req, res) => {
     updateData.leadStatus = sanitizeObjectId(updateData.leadStatus);
     updateData.leadSource = sanitizeObjectId(updateData.leadSource);
     updateData.assignedTo = sanitizeObjectId(updateData.assignedTo);
-
+    updateData.priority = sanitizeObjectId(updateData.priority);
 
     let currentAttachments = [...(oldLeads.attachments || [])];
 
@@ -350,6 +352,7 @@ exports.leadUpdate = async (req, res) => {
     })
       .populate("leadStatus")
       .populate("leadSource")
+      .populate("priority")
       .populate("assignedTo")
       .populate("followUps.staff", "fullName email");
 

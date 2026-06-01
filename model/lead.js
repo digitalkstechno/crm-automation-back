@@ -40,9 +40,8 @@ const LeadSchema = new Schema(
       ref: "Staff",
     },
     priority: {
-      type: String,
-      enum: ["high", "medium", "low"],
-      default: "medium",
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "leadPriority",
     },
 
     nextFollowupDate: {
