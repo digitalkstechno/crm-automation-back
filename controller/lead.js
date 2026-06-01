@@ -7,6 +7,7 @@ const { incrementCount, decrementCount } = require("../utils/leadCountHelper");
 const LeadStatus = require("../model/leadStatus");
 const LeadSource = require("../model/leadSources");
 const LeadLabel = require("../model/leadLabel");
+const LeadPriority = require("../model/leadPriority");
 const Notification = require("../model/notification");
 const ExcelJS = require("exceljs");
 const fs = require("fs");
@@ -1618,10 +1619,11 @@ exports.exportLeadsToExcel = async (req, res) => {
 // ────────────────────────────────────────────────────────────────────────────
 exports.downloadImportTemplate = async (req, res) => {
   try {
-    const [statuses, sources, labels] = await Promise.all([
+    const [statuses, sources, labels, priorities] = await Promise.all([
       LeadStatus.find().select("name").lean(),
       LeadSource.find().select("name").lean(),
       LeadLabel.find().select("name").lean(),
+      LeadPriority.find().select("name").sort({ order: 1 }).lean(),
     ]);
 
     const workbook = new ExcelJS.Workbook();
@@ -1636,7 +1638,7 @@ exports.downloadImportTemplate = async (req, res) => {
     sourceSheet.addRows(sources.map((s) => [s.name]));
 
     const prioritySheet = workbook.addWorksheet("__priorities", { state: "veryHidden" });
-    prioritySheet.addRows([["high"], ["medium"], ["low"]]);
+    prioritySheet.addRows(priorities.map((p) => [p.name]));
 
     const labelSheet = workbook.addWorksheet("__labels", { state: "veryHidden" });
     labelSheet.addRows(labels.map((l) => [l.name]));
@@ -1680,7 +1682,7 @@ exports.downloadImportTemplate = async (req, res) => {
       address: "123 Main St",
       leadStatus: statuses[0]?.name || "",
       leadSource: sources[0]?.name || "",
-      priority: "medium",
+      priority: priorities[0]?.name || "",
       note: "Sample note",
     });
     sampleRow.eachCell((cell) => {
@@ -1694,7 +1696,7 @@ exports.downloadImportTemplate = async (req, res) => {
 
     const statusFormula = `__statuses!$A$1:$A$${statuses.length || 1}`;
     const sourceFormula = `__sources!$A$1:$A$${sources.length || 1}`;
-    const priorityFormula = `__priorities!$A$1:$A$3`;
+    const priorityFormula = `__priorities!$A$1:$A$${priorities.length || 1}`;
 
     for (let row = 2; row <= 1001; row++) {
       sheet.getCell(row, COL.leadStatus).dataValidation = {
@@ -1719,7 +1721,7 @@ exports.downloadImportTemplate = async (req, res) => {
         formulae: [priorityFormula],
         showErrorMessage: true,
         errorTitle: "Invalid Priority",
-        error: "Priority must be: high, medium, or low",
+        error: "Please select a valid Priority from the dropdown.",
       };
     }
 
@@ -1750,9 +1752,10 @@ exports.bulkImportLeads = async (req, res) => {
     }
 
     // Load master data for name→ID lookup
-    const [statuses, sources] = await Promise.all([
+    const [statuses, sources, priorityDocs] = await Promise.all([
       LeadStatus.find().lean(),
       LeadSource.find().lean(),
+      LeadPriority.find().lean(),
     ]);
 
     const statusMap = {};
@@ -1761,6 +1764,8 @@ exports.bulkImportLeads = async (req, res) => {
     const sourceMap = {};
     sources.forEach((s) => { sourceMap[s.name.trim().toLowerCase()] = s._id; });
 
+    const VALID_PRIORITIES = priorityDocs.map((p) => p.name.trim().toLowerCase());
+
     // Parse Excel
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(filePath);
@@ -1768,8 +1773,6 @@ exports.bulkImportLeads = async (req, res) => {
     if (!sheet) {
       return res.status(400).json({ status: "Fail", message: "Invalid template: 'Leads Import' sheet not found" });
     }
-
-    const VALID_PRIORITIES = ["high", "medium", "low"];
 
     const successRows = [];
     const failedRows = []; // { rowNum, rowData, errors }
@@ -1818,14 +1821,14 @@ exports.bulkImportLeads = async (req, res) => {
         errors.push("Invalid email format");
       }
 
-      if (priority && !VALID_PRIORITIES.includes(priority)) {
-        errors.push(`Priority must be high / medium / low (got '${priority}')`);
+      if (priority && VALID_PRIORITIES.length > 0 && !VALID_PRIORITIES.includes(priority)) {
+        errors.push(`Priority '${priority}' is not valid. Allowed: ${VALID_PRIORITIES.join(" / ")}`);
       }
 
       if (errors.length > 0) {
         failedRows.push({ rowNumber, fullName, contact, email, companyName, address, statusName, sourceName, priority, note, errors: errors.join(" | ") });
       } else {
-        successRows.push({ fullName, contact, email: email || undefined, companyName, address: address || undefined, leadStatus: statusId, leadSource: sourceId, priority: priority || "medium", note: note || undefined, assignedTo });
+        successRows.push({ fullName, contact, email: email || undefined, companyName, address: address || undefined, leadStatus: statusId, leadSource: sourceId, priority: priority || undefined, note: note || undefined, assignedTo });
       }
     });
 
