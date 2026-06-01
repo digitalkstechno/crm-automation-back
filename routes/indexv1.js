@@ -11,6 +11,7 @@ router.use("/lead", require("./lead"));
 router.use("/meta-webhook", require("./metaLead"));
 router.use("/meta", require("./meta"));
 router.use("/leadlabel", require("./leadLabel"));
+router.use("/leadpriority", require("./leadPriority"));
 router.use("/team", require("./team"));
 router.use("/organization", require("./organization"));
 router.use("/task", require("./task"));

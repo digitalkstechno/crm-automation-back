@@ -83,7 +83,7 @@ exports.fetchAllLeads = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const { search = "", status, source, staff, date, from, to } = req.query;
+    const { search = "", status, source, staff, date, from, to, amountBudget } = req.query;
 
     // 🔥 BASE QUERY
     const query = {};
@@ -161,6 +161,18 @@ exports.fetchAllLeads = async (req, res) => {
       query.createdAt = { $gte: start, $lte: end };
     }
 
+    /* =====================
+       AMOUNT BUDGET FILTER
+    ====================== */
+    if (amountBudget) {
+      const budgetArr = amountBudget.split(',').map(s => s.trim()).filter(Boolean);
+      if (budgetArr.length === 1) {
+        query.amountBudget = budgetArr[0];
+      } else if (budgetArr.length > 1) {
+        query.amountBudget = { $in: budgetArr };
+      }
+    }
+
     // 🔥 SCOPE & PERMISSIONS
     if (req.leadScope === "own" && req.user && req.user._id) {
       // Find team members
@@ -198,7 +210,6 @@ exports.fetchAllLeads = async (req, res) => {
       .sort({ updatedAt: 1 })
       .populate("leadStatus")
       .populate("leadSource")
-      .populate("leadLabel")
       .populate("assignedTo")
       .populate("followUps.staff", "fullName email");
 
@@ -233,7 +244,6 @@ exports.fetchLeadById = async (req, res) => {
       .populate({ path: "leadStatus" })
       .populate({ path: "leadSource" })
       .populate({ path: "assignedTo" })
-      .populate({ path: "leadLabel" })
       .populate({ path: "followUps.staff", select: "fullName email" });
     if (!leadData) {
       throw new Error("Lead not found");
@@ -341,7 +351,6 @@ exports.leadUpdate = async (req, res) => {
       .populate("leadStatus")
       .populate("leadSource")
       .populate("assignedTo")
-      .populate("leadLabel")
       .populate("followUps.staff", "fullName email");
 
     // 🔹 Status change handling
@@ -513,7 +522,6 @@ exports.fetchLeadsForKanban = async (req, res) => {
         const leads = await LEAD.find(leadMatch)
           .populate("leadStatus")
           .populate("leadSource")
-          .populate("leadLabel")
           .populate("assignedTo")
           .sort({ updatedAt: -1 })
           .limit(20); // Show more leads in kanban
@@ -592,7 +600,6 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
     const leads = await LEAD.find(match)
       .populate("leadStatus")
       .populate("leadSource")
-      .populate("leadLabel")
       .populate("assignedTo")
       .sort({ updatedAt: 1 })
       .skip(skip)
@@ -1266,7 +1273,6 @@ exports.getWonLeads = async (req, res) => {
       .populate("leadStatus")
       .populate("leadSource")
       .populate("assignedTo")
-      .populate("leadLabel")
       .sort({ updatedAt: 1 })
       .skip(skip)
       .limit(limit);
@@ -1361,7 +1367,6 @@ exports.getLostLeads = async (req, res) => {
       .populate("leadStatus")
       .populate("leadSource")
       .populate("assignedTo")
-      .populate("leadLabel")
       .sort({ updatedAt: 1 })
       .skip(skip)
       .limit(limit);

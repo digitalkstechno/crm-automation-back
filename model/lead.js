@@ -39,11 +39,6 @@ const LeadSchema = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Staff",
     },
-    leadLabel: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "leadLabel",
-    }],
-
     priority: {
       type: String,
       enum: ["high", "medium", "low"],
@@ -94,7 +89,10 @@ const LeadSchema = new Schema(
     paymentAmount: {
       type: Number,
       default: 0,
-    }
+    },
+    amountBudget: {
+      type: String,
+    },
   },
   {
     timestamps: true,
