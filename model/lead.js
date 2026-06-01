@@ -41,7 +41,6 @@ const LeadSchema = new Schema(
     },
     priority: {
       type: mongoose.Schema.Types.Mixed,
-      ref: "leadPriority",
     },
 
     nextFollowupDate: {
