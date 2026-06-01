@@ -16,5 +16,6 @@ router.use("/organization", require("./organization"));
 router.use("/task", require("./task"));
 router.use("/notification", require("./notification"));
 router.use("/settings", require("./setting"));
+router.use("/product", require("./product"));
 
 module.exports = router;

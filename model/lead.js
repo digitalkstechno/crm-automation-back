@@ -94,7 +94,11 @@ const LeadSchema = new Schema(
     paymentAmount: {
       type: Number,
       default: 0,
-    }
+    },
+    products: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+    }],
   },
   {
     timestamps: true,
