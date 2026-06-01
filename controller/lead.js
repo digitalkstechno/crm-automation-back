@@ -210,7 +210,7 @@ exports.fetchAllLeads = async (req, res) => {
       .sort({ updatedAt: 1 })
       .populate("leadStatus")
       .populate("leadSource")
-      .populate("priority")
+      .populate({ path: "priority", strictPopulate: false })
       .populate("assignedTo")
       .populate("followUps.staff", "fullName email");
 
@@ -244,7 +244,7 @@ exports.fetchLeadById = async (req, res) => {
     let leadData = await LEAD.findById(LeadId)
       .populate({ path: "leadStatus" })
       .populate({ path: "leadSource" })
-      .populate({ path: "priority" })
+      .populate({ path: "priority", strictPopulate: false })
       .populate({ path: "assignedTo" })
       .populate({ path: "followUps.staff", select: "fullName email" });
     if (!leadData) {
@@ -352,7 +352,7 @@ exports.leadUpdate = async (req, res) => {
     })
       .populate("leadStatus")
       .populate("leadSource")
-      .populate("priority")
+      .populate({ path: "priority", strictPopulate: false })
       .populate("assignedTo")
       .populate("followUps.staff", "fullName email");
 

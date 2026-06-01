@@ -40,7 +40,7 @@ const LeadSchema = new Schema(
       ref: "Staff",
     },
     priority: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       ref: "leadPriority",
     },
 
