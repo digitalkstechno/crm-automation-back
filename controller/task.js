@@ -3,6 +3,12 @@ const TaskStatus = require("../model/taskStatus");
 const Notification = require("../model/notification");
 const { deleteUploadedFile } = require("../utils/fileHelper");
 
+const sanitizeObjectId = (id) => {
+  if (id === "" || id === "null" || id === "undefined" || id === null) return null;
+  return id;
+};
+
+
 // Fetch tasks for a specific Kanban column with pagination
 exports.fetchKanbanTasksByStatus = async (req, res) => {
   try {
@@ -22,7 +28,7 @@ exports.fetchKanbanTasksByStatus = async (req, res) => {
     const tasks = await Task.find(query)
       .skip(skip)
       .limit(parseInt(limit))
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: 1 })
       .populate("assignedUsers", "fullName email")
       .populate("assignedTeams", "name")
       .populate("createdBy", "fullName")
@@ -68,7 +74,7 @@ exports.createTask = async (req, res) => {
       assignedTeams: parseIds(req.body.assignedTeams),
       attachments,
       createdBy: req.user?._id,
-      taskStatus: taskStatus || null,
+      taskStatus: sanitizeObjectId(taskStatus),
     };
 
     const task = await Task.create(taskData);
@@ -127,7 +133,7 @@ exports.getAllTasks = async (req, res) => {
 
     const total = await Task.countDocuments(query);
     const tasks = await Task.find(query)
-      .skip(skip).limit(limit).sort({ createdAt: -1 })
+      .skip(skip).limit(limit).sort({ updatedAt: 1 })
       .populate("assignedUsers", "fullName email")
       .populate("assignedTeams", "name")
       .populate("createdBy", "fullName")
@@ -173,7 +179,7 @@ exports.updateTask = async (req, res) => {
 
     // Handle status explicitly if provided
     if (req.body.taskStatus !== undefined) {
-      updateData.taskStatus = req.body.taskStatus;
+      updateData.taskStatus = sanitizeObjectId(req.body.taskStatus);
     }
 
     if (req.files?.length) {
@@ -242,7 +248,7 @@ exports.getMyTasks = async (req, res) => {
 
     const total = await Task.countDocuments(query);
     const tasks = await Task.find(query)
-      .skip(skip).limit(limit).sort({ createdAt: -1 })
+      .skip(skip).limit(limit).sort({ updatedAt: 1 })
       .populate("assignedUsers", "fullName email")
       .populate("assignedTeams", "name")
       .populate("createdBy", "fullName")
@@ -379,7 +385,7 @@ exports.getTasksForKanban = async (req, res) => {
       .populate("assignedTeams", "name")
       .populate("createdBy", "fullName")
       .populate("taskStatus")
-      .sort({ createdAt: -1 });
+      .sort({ updatedAt: 1 });
 
     // Group tasks by status
     const tasksByStatus = {};
@@ -459,7 +465,7 @@ exports.getTodayTasks = async (req, res) => {
       ]
     })
     .populate("taskStatus")
-    .sort({ priority: -1, createdAt: -1 });
+    .sort({ priority: -1, updatedAt: 1 });
 
     return res.status(200).json({
       status: "Success",

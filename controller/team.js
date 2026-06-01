@@ -2,7 +2,7 @@ const Team = require("../model/team");
 
 exports.createTeam = async (req, res) => {
   try {
-    const team = await Team.create({ name: req.body.name });
+    const team = await Team.create({ name: req.body.name, teamLeader: req.body.teamLeader });
     res.status(201).json({ status: "Success", message: "Team created successfully", data: team });
   } catch (error) {
     res.status(400).json({ status: "Fail", message: error.message });
@@ -18,7 +18,7 @@ exports.fetchAllTeams = async (req, res) => {
 
     const query = { name: { $regex: search, $options: "i" } };
     const total = await Team.countDocuments(query);
-    const data = await Team.find(query).skip(skip).limit(limit).sort({ createdAt: -1 });
+    const data = await Team.find(query).populate("teamLeader", "fullName email").skip(skip).limit(limit).sort({ createdAt: -1 });
 
     res.status(200).json({
       status: "Success",
@@ -33,7 +33,7 @@ exports.fetchAllTeams = async (req, res) => {
 
 exports.updateTeam = async (req, res) => {
   try {
-    const team = await Team.findByIdAndUpdate(req.params.id, { name: req.body.name }, { new: true });
+    const team = await Team.findByIdAndUpdate(req.params.id, { name: req.body.name, teamLeader: req.body.teamLeader }, { new: true });
     if (!team) throw new Error("Team not found");
     res.status(200).json({ status: "Success", message: "Team updated successfully", data: team });
   } catch (error) {
