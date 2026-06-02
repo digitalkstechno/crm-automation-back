@@ -1960,6 +1960,26 @@ exports.bulkImportLeads = async (req, res) => {
   }
 };
 
+exports.getAmountBudgetOptions = async (req, res) => {
+  try {
+    const match = {};
+    if (req.leadScope === "own" && req.user && req.user._id) {
+      const myTeams = req.user.teams || [];
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
+      match.assignedTo = { $in: [req.user._id, ...teamMembers.map(m => m._id)] };
+    }
+    const values = await LEAD.distinct("amountBudget", {
+      ...match,
+      amountBudget: { $exists: true, $ne: null, $ne: "" },
+    });
+    return res.status(200).json({ status: "Success", data: values.filter(Boolean) });
+  } catch (error) {
+    return res.status(500).json({ status: "Fail", message: error.message });
+  }
+};
+
 exports.bulkAssignLeads = async (req, res) => {
   try {
     const { leadIds, staffId } = req.body;

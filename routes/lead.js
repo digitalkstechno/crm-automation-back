@@ -29,6 +29,7 @@ let {
   downloadImportTemplate,
   bulkImportLeads,
   bulkAssignLeads,
+  getAmountBudgetOptions,
 } = require("../controller/lead");
 const authMiddleware = require("../middleware/auth");
 const { authorize, leadReadScope } = require("../middleware/permissions");
@@ -73,6 +74,8 @@ router.get(
   authMiddleware,
   getMyDueFollowups,
 );
+router.get("/amount-budget-options", authMiddleware, leadReadScope(), getAmountBudgetOptions);
+router.get("/amount-budget-options/my", authMiddleware, (req, res, next) => { req.leadScope = 'own'; next(); }, getAmountBudgetOptions);
 router.get("/won", authMiddleware, leadReadScope(), getWonLeads);
 router.get("/lost", authMiddleware, leadReadScope(), getLostLeads);
 router.get("/export", authMiddleware, leadReadScope(), exportLeadsToExcel);
