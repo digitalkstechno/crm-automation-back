@@ -250,17 +250,16 @@ exports.fetchLeadById = async (req, res) => {
       throw new Error("Lead not found");
     }
 
-    if (
-      req.leadScope === "own" &&
-      req.user &&
-      leadData.assignedTo &&
-      leadData.assignedTo._id &&
-      String(leadData.assignedTo._id) !== String(req.user._id)
-    ) {
-      return res.status(403).json({
-        status: "Fail",
-        message: "Access denied",
-      });
+    if (req.leadScope === "own" && req.user) {
+      const myTeams = req.user.teams || [];
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
+      const allowedIds = [String(req.user._id), ...teamMembers.map(m => String(m._id))];
+      const assignedId = leadData.assignedTo?._id ? String(leadData.assignedTo._id) : String(leadData.assignedTo);
+      if (!allowedIds.includes(assignedId)) {
+        return res.status(403).json({ status: "Fail", message: "Access denied" });
+      }
     }
 
     return res.status(200).json({
@@ -283,6 +282,19 @@ exports.leadUpdate = async (req, res) => {
 
     if (!oldLeads) {
       throw new Error("Lead not found");
+    }
+
+    // Team leader can update own + team members' leads
+    if (req.leadScope === "own" && req.user) {
+      const myTeams = req.user.teams || [];
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
+      const allowedIds = [String(req.user._id), ...teamMembers.map(m => String(m._id))];
+      const assignedId = oldLeads.assignedTo ? String(oldLeads.assignedTo) : null;
+      if (!assignedId || !allowedIds.includes(assignedId)) {
+        return res.status(403).json({ status: "Fail", message: "Access denied" });
+      }
     }
 
     const updateData = { ...req.body };
@@ -942,7 +954,11 @@ exports.getUpcomingFollowups = async (req, res) => {
     };
 
     if (req.leadScope === "own" && req.user && req.user._id) {
-      matchStage.assignedTo = req.user._id;
+      const myTeams = req.user.teams || [];
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
+      matchStage.assignedTo = { $in: [req.user._id, ...teamMembers.map(m => m._id)] };
     }
 
     const basePipeline = [
@@ -972,7 +988,7 @@ exports.getUpcomingFollowups = async (req, res) => {
                 ],
               },
               format: "%Y-%m-%d %H:%M",
-              timezone: "Asia/Kolkata", // 🔥 CRITICAL FIX
+              timezone: "Asia/Kolkata",
               onError: null,
               onNull: null,
             },
@@ -1072,7 +1088,11 @@ exports.getDueFollowups = async (req, res) => {
     };
 
     if (req.leadScope === "own" && req.user && req.user._id) {
-      matchStage.assignedTo = req.user._id;
+      const myTeams = req.user.teams || [];
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
+      matchStage.assignedTo = { $in: [req.user._id, ...teamMembers.map(m => m._id)] };
     }
 
     const basePipeline = [
@@ -1102,7 +1122,7 @@ exports.getDueFollowups = async (req, res) => {
                 ],
               },
               format: "%Y-%m-%d %H:%M",
-              timezone: "Asia/Kolkata", // 🔥 IMPORTANT
+              timezone: "Asia/Kolkata",
               onError: null,
               onNull: null,
             },
@@ -1114,7 +1134,7 @@ exports.getDueFollowups = async (req, res) => {
       },
       {
         $match: {
-          followupDateTime: { $lt: now }, // ✅ due logic
+          followupDateTime: { $lt: now },
         },
       },
     ];

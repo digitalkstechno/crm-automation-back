@@ -97,6 +97,7 @@ router.put(
 router.put(
   "/:id",
   authMiddleware,
+  leadReadScope(),
   authorize("lead", "update"),
   upload.array("attachments"),
   leadUpdate,
