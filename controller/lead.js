@@ -98,7 +98,6 @@ exports.fetchAllLeads = async (req, res) => {
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -212,6 +211,7 @@ exports.fetchAllLeads = async (req, res) => {
       .populate("leadStatus")
       .populate("leadSource")
       .populate("assignedTo")
+      .populate("priority")
       .populate("followUps.staff", "fullName email");
 
     return res.status(200).json({
@@ -245,6 +245,7 @@ exports.fetchLeadById = async (req, res) => {
       .populate({ path: "leadStatus" })
       .populate({ path: "leadSource" })
       .populate({ path: "assignedTo" })
+      .populate({ path: "priority" })
       .populate({ path: "followUps.staff", select: "fullName email" });
     if (!leadData) {
       throw new Error("Lead not found");
@@ -364,6 +365,7 @@ exports.leadUpdate = async (req, res) => {
       .populate("leadStatus")
       .populate("leadSource")
       .populate("assignedTo")
+      .populate("priority")
       .populate("followUps.staff", "fullName email");
 
     // 🔹 Status change handling
@@ -471,7 +473,6 @@ exports.fetchLeadsForKanban = async (req, res) => {
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -693,7 +694,6 @@ exports.getKanbanCounts = async (req, res) => {
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -793,7 +793,6 @@ exports.getLeadCountSummary = async (req, res) => {
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -1252,7 +1251,6 @@ exports.getWonLeads = async (req, res) => {
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -1359,7 +1357,6 @@ exports.getLostLeads = async (req, res) => {
         { email: { $regex: search, $options: "i" } },
         { phone: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -1526,7 +1523,8 @@ exports.exportLeadsToExcel = async (req, res) => {
       .sort({ updatedAt: 1 })
       .populate("leadStatus", "name")
       .populate("leadSource", "name")
-      .populate("assignedTo", "fullName email");
+      .populate("assignedTo", "fullName email")
+      .populate("priority", "name");
 
     // ── Build Excel ───────────────────────────────────────────────────────────
     const workbook = new ExcelJS.Workbook();
@@ -1578,7 +1576,7 @@ exports.exportLeadsToExcel = async (req, res) => {
         status: lead.leadStatus?.name || "",
         source: lead.leadSource?.name || "",
         assigned: lead.assignedTo?.fullName || "",
-        priority: lead.priority || "",
+        priority: lead.priority?.name || "",
         createdAt: lead.createdAt
           ? new Date(lead.createdAt).toLocaleDateString("en-IN")
           : "",
@@ -1781,7 +1779,8 @@ exports.bulkImportLeads = async (req, res) => {
     const sourceMap = {};
     sources.forEach((s) => { sourceMap[s.name.trim().toLowerCase()] = s._id; });
 
-    const VALID_PRIORITIES = priorityDocs.map((p) => p.name.trim().toLowerCase());
+    const priorityMap = {};
+    priorityDocs.forEach((p) => { priorityMap[p.name.trim().toLowerCase()] = p._id; });
 
     // Parse Excel
     const workbook = new ExcelJS.Workbook();
@@ -1814,7 +1813,7 @@ exports.bulkImportLeads = async (req, res) => {
       const address = getCellValue(5);
       const statusName = getCellValue(6);
       const sourceName = getCellValue(7);
-      const priority = getCellValue(8).toLowerCase() || "medium";
+      const priorityName = getCellValue(8);
       const note = getCellValue(9);
 
       // Skip completely empty rows
@@ -1838,14 +1837,15 @@ exports.bulkImportLeads = async (req, res) => {
         errors.push("Invalid email format");
       }
 
-      if (priority && VALID_PRIORITIES.length > 0 && !VALID_PRIORITIES.includes(priority)) {
-        errors.push(`Priority '${priority}' is not valid. Allowed: ${VALID_PRIORITIES.join(" / ")}`);
+      const priorityId = priorityName ? priorityMap[priorityName.trim().toLowerCase()] : undefined;
+      if (priorityName && !priorityId) {
+        errors.push(`Priority '${priorityName}' not found in master. Allowed: ${Object.keys(priorityMap).join(" / ")}`);
       }
 
       if (errors.length > 0) {
-        failedRows.push({ rowNumber, fullName, contact, email, companyName, address, statusName, sourceName, priority, note, errors: errors.join(" | ") });
+        failedRows.push({ rowNumber, fullName, contact, email, companyName, address, statusName, sourceName, priority: priorityName, note, errors: errors.join(" | ") });
       } else {
-        successRows.push({ fullName, contact, email: email || undefined, companyName, address: address || undefined, leadStatus: statusId, leadSource: sourceId, priority: priority || undefined, note: note || undefined, assignedTo });
+        successRows.push({ fullName, contact, email: email || undefined, companyName, address: address || undefined, leadStatus: statusId, leadSource: sourceId, priority: priorityId || undefined, note: note || undefined, assignedTo });
       }
     });
 
