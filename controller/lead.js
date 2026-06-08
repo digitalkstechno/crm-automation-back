@@ -983,6 +983,20 @@ exports.getUpcomingFollowups = async (req, res) => {
       followUps: { $elemMatch: { date: { $nin: [null, ""] } } },
     };
 
+    if (req.query.from || req.query.to) {
+      const start = req.query.from ? new Date(req.query.from) : new Date(0);
+      start.setHours(0, 0, 0, 0);
+
+      const end = req.query.to ? new Date(req.query.to) : new Date();
+      end.setHours(23, 59, 59, 999);
+
+      matchStage.nextFollowupDate = {
+        $nin: [null, ""],
+        $gte: start,
+        $lte: end,
+      };
+    }
+
     if (req.leadScope === "own" && req.user && req.user._id) {
       const myTeams = req.user.teams || [];
       const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
@@ -1126,9 +1140,22 @@ exports.getDueFollowups = async (req, res) => {
     const matchStage = {
       isActive: true,
       nextFollowupDate: { $nin: [null, ""] },
-      nextFollowupTime: { $nin: [null, ""] },
       followUps: { $elemMatch: { date: { $nin: [null, ""] } } },
     };
+
+    if (req.query.from || req.query.to) {
+      const start = req.query.from ? new Date(req.query.from) : new Date(0);
+      start.setHours(0, 0, 0, 0);
+
+      const end = req.query.to ? new Date(req.query.to) : new Date();
+      end.setHours(23, 59, 59, 999);
+
+      matchStage.nextFollowupDate = {
+        $nin: [null, ""],
+        $gte: start,
+        $lte: end,
+      };
+    }
 
     if (req.leadScope === "own" && req.user && req.user._id) {
       const myTeams = req.user.teams || [];

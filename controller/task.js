@@ -446,9 +446,12 @@ exports.deleteTask = async (req, res) => {
 
 exports.getTodayTasks = async (req, res) => {
   try {
-    const todayStart = new Date();
+    const { from, to } = req.query;
+
+    const todayStart = from ? new Date(from) : new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
+    
+    const todayEnd = to ? new Date(to) : new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
     const query = {
