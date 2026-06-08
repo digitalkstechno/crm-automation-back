@@ -886,6 +886,34 @@ exports.getLeadCountSummary = async (req, res) => {
               },
             },
           ].filter(Boolean),
+
+          sourceWise: [
+            Object.keys(baseMatch).length > 0 ? { $match: baseMatch } : null,
+            {
+              $group: {
+                _id: "$leadSource",
+                count: { $sum: 1 },
+              },
+            },
+            {
+              $lookup: {
+                from: "leadsources",
+                localField: "_id",
+                foreignField: "_id",
+                as: "sourceDoc",
+              },
+            },
+            {
+              $unwind: { path: "$sourceDoc", preserveNullAndEmptyArrays: true },
+            },
+            {
+              $project: {
+                _id: 1,
+                name: { $ifNull: ["$sourceDoc.name", "Unknown"] },
+                count: 1,
+              },
+            },
+          ].filter(Boolean),
         },
       },
     ]);
@@ -894,6 +922,7 @@ exports.getLeadCountSummary = async (req, res) => {
     const monthlyLeads = counts[0]?.monthlyLeads[0]?.count || 0;
     const totalRevenue = counts[0]?.totalRevenue[0]?.total || 0;
     const statusWiseRaw = counts[0]?.statusWise || [];
+    const sourceWiseCounts = counts[0]?.sourceWise || [];
 
     const statusWiseCounts = allStatuses.map((status) => {
       const found = statusWiseRaw.find(
@@ -914,6 +943,7 @@ exports.getLeadCountSummary = async (req, res) => {
         currentMonthLeads: monthlyLeads,
         totalRevenue,
         statusWiseCounts,
+        sourceWiseCounts,
       },
     });
   } catch (error) {
@@ -949,7 +979,8 @@ exports.getUpcomingFollowups = async (req, res) => {
 
     const matchStage = {
       isActive: true,
-      nextFollowupDate: { $ne: null },
+      nextFollowupDate: { $nin: [null, ""] },
+      followUps: { $elemMatch: { date: { $nin: [null, ""] } } },
     };
 
     if (req.leadScope === "own" && req.user && req.user._id) {
@@ -1094,8 +1125,9 @@ exports.getDueFollowups = async (req, res) => {
 
     const matchStage = {
       isActive: true,
-      nextFollowupDate: { $ne: null },
-      nextFollowupTime: { $ne: null },
+      nextFollowupDate: { $nin: [null, ""] },
+      nextFollowupTime: { $nin: [null, ""] },
+      followUps: { $elemMatch: { date: { $nin: [null, ""] } } },
     };
 
     if (req.leadScope === "own" && req.user && req.user._id) {

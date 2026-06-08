@@ -47,7 +47,7 @@ const LeadSchema = new Schema(
 
     nextFollowupDate: {
       type: Date,
-      default: Date.now,
+      default: null,
     },
 
     nextFollowupTime: {
