@@ -960,6 +960,18 @@ exports.getUpcomingFollowups = async (req, res) => {
       matchStage.assignedTo = { $in: [req.user._id, ...teamMembers.map(m => m._id)] };
     }
 
+    if (req.query.staff) {
+      const staffArr = req.query.staff.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
+      if (matchStage.assignedTo && matchStage.assignedTo.$in) {
+        matchStage.assignedTo.$in = staffArr.filter(id =>
+          matchStage.assignedTo.$in.some(aid => aid.toString() === id.toString())
+        );
+      } else {
+        if (staffArr.length === 1) matchStage.assignedTo = staffArr[0];
+        else matchStage.assignedTo = { $in: staffArr };
+      }
+    }
+
     const basePipeline = [
       {
         $match: matchStage,
@@ -1092,6 +1104,18 @@ exports.getDueFollowups = async (req, res) => {
       const ledTeamIds = ledTeams.map(t => t._id);
       const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
       matchStage.assignedTo = { $in: [req.user._id, ...teamMembers.map(m => m._id)] };
+    }
+
+    if (req.query.staff) {
+      const staffArr = req.query.staff.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
+      if (matchStage.assignedTo && matchStage.assignedTo.$in) {
+        matchStage.assignedTo.$in = staffArr.filter(id =>
+          matchStage.assignedTo.$in.some(aid => aid.toString() === id.toString())
+        );
+      } else {
+        if (staffArr.length === 1) matchStage.assignedTo = staffArr[0];
+        else matchStage.assignedTo = { $in: staffArr };
+      }
     }
 
     const basePipeline = [

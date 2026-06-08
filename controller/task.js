@@ -451,8 +451,7 @@ exports.getTodayTasks = async (req, res) => {
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
-    const tasks = await Task.find({
-      assignedUsers: req.user._id,
+    const query = {
       $or: [
         { startDate: { $gte: todayStart, $lte: todayEnd } },
         { endDate: { $gte: todayStart, $lte: todayEnd } },
@@ -463,7 +462,17 @@ exports.getTodayTasks = async (req, res) => {
           ]
         }
       ]
-    })
+    };
+
+    if (req.query.staff) {
+      const staffArr = req.query.staff.split(',').filter(s => s.trim());
+      if (staffArr.length === 1) query.assignedUsers = staffArr[0];
+      else query.assignedUsers = { $in: staffArr };
+    } else {
+      query.assignedUsers = req.user._id;
+    }
+
+    const tasks = await Task.find(query)
     .populate("taskStatus")
     .sort({ priority: -1, updatedAt: 1 });
 
