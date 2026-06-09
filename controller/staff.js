@@ -79,13 +79,45 @@ exports.fetchAllStaffs = async (req, res) => {
 
     const search = req.query.search || "";
 
+    let hasReadAll = false;
+    if (req.user && req.user.role && req.user.role.permissions && req.user.role.permissions.length > 0) {
+      const perms = req.user.role.permissions[0];
+      if (perms.staff && perms.staff.readAll) {
+        hasReadAll = true;
+      }
+    }
+
+    let matchQuery = {};
+
+    if (!hasReadAll && req.user) {
+      const Team = require("../model/team");
+      const ledTeams = await Team.find({ teamLeader: req.user._id }).select("_id");
+      
+      if (ledTeams.length > 0) {
+        const ledTeamIds = ledTeams.map(t => t._id);
+        matchQuery = {
+          $or: [
+            { _id: req.user._id },
+            { teams: { $in: ledTeamIds } }
+          ]
+        };
+      } else {
+        matchQuery = { _id: req.user._id };
+      }
+    }
+
     const query = {
-      $or: [
-        { fullName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
-        { status: { $regex: search, $options: "i" } },
-      ],
+      $and: [
+        matchQuery,
+        {
+          $or: [
+            { fullName: { $regex: search, $options: "i" } },
+            { email: { $regex: search, $options: "i" } },
+            { phone: { $regex: search, $options: "i" } },
+            { status: { $regex: search, $options: "i" } },
+          ]
+        }
+      ]
     };
 
     const totalStaff = await STAFF.countDocuments(query);
