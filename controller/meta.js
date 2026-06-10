@@ -229,10 +229,27 @@ exports.handleSheetLead = async (req, res) => {
     // Build Note from custom fields
     let noteParts = [];
     if (data.note) noteParts.push(data.note);
-    if (data["are_you_an_exporter?"]) noteParts.push(`Exporter: ${data["are_you_an_exporter?"]}`);
-    if (data["looking_for_government_benefits?_"]) noteParts.push(`Gov Benefits: ${data["looking_for_government_benefits?_"]}`);
     if (data.form_name) noteParts.push(`Form: ${data.form_name}`);
     if (data.campaign_name) noteParts.push(`Campaign: ${data.campaign_name}`);
+    
+    // Standard meta fields to ignore when building custom notes
+    const standardFields = [
+      "id", "created_time", "ad_id", "ad_name", "adset_id", "adset_name", 
+      "campaign_id", "campaign_name", "form_id", "form_name", "is_organic", 
+      "platform", "lead_status", "status", "full_name", "phone", "city", "email", 
+      "company_name", "note", "metaleadid", "fullname", "clientname", "name", 
+      "phone_number", "mobile", "contact", "address", "priority"
+    ];
+
+    Object.keys(data).forEach(key => {
+      // If it's not a standard field and has a value, add it to notes
+      if (!standardFields.includes(key.toLowerCase()) && data[key] !== undefined && data[key] !== "") {
+        // Beautify the key (e.g. "are_you_an_exporter?" -> "Are you an exporter")
+        let displayKey = key.replace(/_/g, ' ').replace(/\?/g, '').trim();
+        displayKey = displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
+        noteParts.push(`${displayKey}: ${data[key]}`);
+      }
+    });
     
     const accountData = {
       fullName: data.full_name || data.fullName || data.clientName || data.name || "Sheet Lead",
