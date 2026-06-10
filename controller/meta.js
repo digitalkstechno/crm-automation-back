@@ -262,7 +262,6 @@ exports.handleSheetLead = async (req, res) => {
       leadLabel: label ? [label._id] : [],
       metaLeadId: leadId,
       metaRawData: data,
-      priority: data.priority || "medium",
       isActive: true,
       note: noteParts.join(" | ") || `Imported from Sheet at ${new Date().toISOString()}`
     };
