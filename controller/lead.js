@@ -209,10 +209,17 @@ exports.fetchAllLeads = async (req, res) => {
     ====================== */
     const totalLeads = await LEAD.countDocuments(query);
 
+    const sortObj = {};
+    if (from || to || date) {
+      sortObj.nextFollowupDate = 1;
+    } else {
+      sortObj.updatedAt = 1;
+    }
+
     const LeadData = await LEAD.find(query)
       .skip(skip)
       .limit(limit)
-      .sort({ updatedAt: 1 })
+      .sort(sortObj)
       .populate("leadStatus")
       .populate("leadSource")
       .populate("assignedTo")
@@ -537,6 +544,13 @@ exports.fetchLeadsForKanban = async (req, res) => {
       end.setHours(23, 59, 59, 999);
       match.nextFollowupDate = { $gte: start, $lte: end };
     }
+    const sortObj = {};
+    if (from || to || date) {
+      sortObj.nextFollowupDate = 1;
+    } else {
+      sortObj.updatedAt = -1;
+    }
+
     const allStatuses = await LeadStatus.find().sort({ order: 1 });
 
     // If statuses are selected, only return those statuses
@@ -554,7 +568,7 @@ exports.fetchLeadsForKanban = async (req, res) => {
           .populate("leadStatus")
           .populate("leadSource")
           .populate("assignedTo")
-          .sort({ updatedAt: -1 })
+          .sort(sortObj)
           .limit(20); // Show more leads in kanban
 
         return {
@@ -639,12 +653,19 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
       end.setHours(23, 59, 59, 999);
       match.nextFollowupDate = { $gte: start, $lte: end };
     }
+    const sortObj = {};
+    if (from || to || date) {
+      sortObj.nextFollowupDate = 1;
+    } else {
+      sortObj.updatedAt = 1;
+    }
+
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const leads = await LEAD.find(match)
       .populate("leadStatus")
       .populate("leadSource")
       .populate("assignedTo")
-      .sort({ updatedAt: 1 })
+      .sort(sortObj)
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -1433,11 +1454,18 @@ exports.getWonLeads = async (req, res) => {
 
     const total = await LEAD.countDocuments(query);
 
+    const sortObj = {};
+    if (from || to || date) {
+      sortObj.nextFollowupDate = 1;
+    } else {
+      sortObj.updatedAt = 1;
+    }
+
     const leads = await LEAD.find(query)
       .populate("leadStatus")
       .populate("leadSource")
       .populate("assignedTo")
-      .sort({ updatedAt: 1 })
+      .sort(sortObj)
       .skip(skip)
       .limit(limit);
 
@@ -1538,11 +1566,18 @@ exports.getLostLeads = async (req, res) => {
 
     const total = await LEAD.countDocuments(query);
 
+    const sortObj = {};
+    if (from || to || date) {
+      sortObj.nextFollowupDate = 1;
+    } else {
+      sortObj.updatedAt = 1;
+    }
+
     const leads = await LEAD.find(query)
       .populate("leadStatus")
       .populate("leadSource")
       .populate("assignedTo")
-      .sort({ updatedAt: 1 })
+      .sort(sortObj)
       .skip(skip)
       .limit(limit);
 
@@ -1683,8 +1718,15 @@ exports.exportLeadsToExcel = async (req, res) => {
       }
     }
 
+    const sortObj = {};
+    if (from || to || date) {
+      sortObj.nextFollowupDate = 1;
+    } else {
+      sortObj.updatedAt = 1;
+    }
+
     const leads = await LEAD.find(query)
-      .sort({ updatedAt: 1 })
+      .sort(sortObj)
       .populate("leadStatus", "name")
       .populate("leadSource", "name")
       .populate("assignedTo", "fullName email")
