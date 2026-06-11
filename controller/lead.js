@@ -1516,11 +1516,18 @@ exports.getLostLeads = async (req, res) => {
 
     // 🔥 DATE FILTER
     if (from || to) {
-      const start = from ? new Date(from) : new Date(0);
-      start.setHours(0, 0, 0, 0);
-      const end = to ? new Date(to) : new Date();
-      end.setHours(23, 59, 59, 999);
-      query.nextFollowupDate = { $gte: start, $lte: end };
+      const dateQuery = {};
+      if (from) {
+        const start = new Date(from);
+        start.setHours(0, 0, 0, 0);
+        dateQuery.$gte = start;
+      }
+      if (to) {
+        const end = new Date(to);
+        end.setHours(23, 59, 59, 999);
+        dateQuery.$lte = end;
+      }
+      query.nextFollowupDate = dateQuery;
     } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
@@ -1633,11 +1640,18 @@ exports.exportLeadsToExcel = async (req, res) => {
 
     // DATE RANGE
     if (from || to) {
-      const start = from ? new Date(from) : new Date(0);
-      start.setHours(0, 0, 0, 0);
-      const end = to ? new Date(to) : new Date();
-      end.setHours(23, 59, 59, 999);
-      query.nextFollowupDate = { $gte: start, $lte: end };
+      const dateQuery = {};
+      if (from) {
+        const start = new Date(from);
+        start.setHours(0, 0, 0, 0);
+        dateQuery.$gte = start;
+      }
+      if (to) {
+        const end = new Date(to);
+        end.setHours(23, 59, 59, 999);
+        dateQuery.$lte = end;
+      }
+      query.nextFollowupDate = dateQuery;
     } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
