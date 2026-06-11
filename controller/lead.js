@@ -150,7 +150,7 @@ exports.fetchAllLeads = async (req, res) => {
       const end = to ? new Date(to) : new Date();
       end.setHours(23, 59, 59, 999);
 
-      query.createdAt = { $gte: start, $lte: end };
+      query.nextFollowupDate = { $gte: start, $lte: end };
     } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
@@ -158,7 +158,7 @@ exports.fetchAllLeads = async (req, res) => {
       const end = new Date(date);
       end.setHours(23, 59, 59, 999);
 
-      query.createdAt = { $gte: start, $lte: end };
+      query.nextFollowupDate = { $gte: start, $lte: end };
     }
 
     /* =====================
@@ -517,15 +517,14 @@ exports.fetchLeadsForKanban = async (req, res) => {
       start.setHours(0, 0, 0, 0);
       const end = to ? new Date(to) : new Date();
       end.setHours(23, 59, 59, 999);
-      match.createdAt = { $gte: start, $lte: end };
+      match.nextFollowupDate = { $gte: start, $lte: end };
     } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
       end.setHours(23, 59, 59, 999);
-      match.createdAt = { $gte: start, $lte: end };
+      match.nextFollowupDate = { $gte: start, $lte: end };
     }
-
     const allStatuses = await LeadStatus.find().sort({ order: 1 });
 
     // If statuses are selected, only return those statuses
@@ -613,15 +612,14 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
       start.setHours(0, 0, 0, 0);
       const end = to ? new Date(to) : new Date();
       end.setHours(23, 59, 59, 999);
-      match.createdAt = { $gte: start, $lte: end };
+      match.nextFollowupDate = { $gte: start, $lte: end };
     } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
       end.setHours(23, 59, 59, 999);
-      match.createdAt = { $gte: start, $lte: end };
+      match.nextFollowupDate = { $gte: start, $lte: end };
     }
-
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const leads = await LEAD.find(match)
       .populate("leadStatus")
@@ -732,21 +730,19 @@ exports.getKanbanCounts = async (req, res) => {
       }
     }
 
-    // 🔥 DATE FILTER
     if (from || to) {
       const start = from ? new Date(from) : new Date(0);
       start.setHours(0, 0, 0, 0);
       const end = to ? new Date(to) : new Date();
       end.setHours(23, 59, 59, 999);
-      match.createdAt = { $gte: start, $lte: end };
+      match.nextFollowupDate = { $gte: start, $lte: end };
     } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
       end.setHours(23, 59, 59, 999);
-      match.createdAt = { $gte: start, $lte: end };
+      match.nextFollowupDate = { $gte: start, $lte: end };
     }
-
     const pipeline = [];
     if (Object.keys(match).length > 0) {
       pipeline.push({ $match: match });
@@ -855,13 +851,13 @@ exports.getLeadCountSummary = async (req, res) => {
       const end = to ? new Date(to) : new Date();
       end.setHours(23, 59, 59, 999);
 
-      baseMatch.createdAt = { $gte: start, $lte: end };
+      baseMatch.nextFollowupDate = { $gte: start, $lte: end };
     } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
       end.setHours(23, 59, 59, 999);
-      baseMatch.createdAt = { $gte: start, $lte: end };
+      baseMatch.nextFollowupDate = { $gte: start, $lte: end };
     }
 
     const counts = await LEAD.aggregate([
@@ -876,7 +872,7 @@ exports.getLeadCountSummary = async (req, res) => {
             {
               $match: {
                 ...baseMatch,
-                createdAt: {
+                nextFollowupDate: {
                   $gte: startOfMonth,
                   $lte: endOfMonth,
                 },
@@ -1315,7 +1311,7 @@ exports.getWonLeads = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const { search, source, staff, date } = req.query;
+    const { search, source, staff, date, from, to } = req.query;
 
     // First find the Won status
     const wonStatus = await LeadStatus.findOne({ name: { $regex: /^won$/i } }); // Case insensitive
@@ -1334,7 +1330,11 @@ exports.getWonLeads = async (req, res) => {
       });
     }
 
-    const match = {};
+    const query = {
+      leadStatus: wonStatus._id,
+      isActive: true
+    };
+
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       const myTeams = req.user.teams || [];
@@ -1342,12 +1342,12 @@ exports.getWonLeads = async (req, res) => {
       const ledTeamIds = ledTeams.map(t => t._id);
       const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
       const teamMemberIds = teamMembers.map(m => m._id);
-      match.assignedTo = { $in: [req.user._id, ...teamMemberIds].map(id => new mongoose.Types.ObjectId(id)) };
+      query.assignedTo = { $in: [req.user._id, ...teamMemberIds].map(id => new mongoose.Types.ObjectId(id)) };
     }
 
     // 🔥 SEARCH FILTER
     if (search) {
-      match.$or = [
+      query.$or = [
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
@@ -1359,32 +1359,38 @@ exports.getWonLeads = async (req, res) => {
     if (source) {
       const sourceArr = source.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
       if (sourceArr.length === 1) {
-        match.leadSource = sourceArr[0];
+        query.leadSource = sourceArr[0];
       } else if (sourceArr.length > 1) {
-        match.leadSource = { $in: sourceArr };
+        query.leadSource = { $in: sourceArr };
       }
     }
 
     // 🔥 STAFF FILTER (handle comma-separated values)
     if (staff) {
       const staffArr = staff.split(',').filter(s => s.trim()).map(id => new mongoose.Types.ObjectId(id));
-      if (match.assignedTo && match.assignedTo.$in) {
-        match.assignedTo.$in = staffArr.filter(id =>
-          match.assignedTo.$in.some(aid => aid.toString() === id.toString())
+      if (query.assignedTo && query.assignedTo.$in) {
+        query.assignedTo.$in = staffArr.filter(id =>
+          query.assignedTo.$in.some(aid => aid.toString() === id.toString())
         );
       } else {
-        if (staffArr.length === 1) match.assignedTo = staffArr[0];
-        else match.assignedTo = { $in: staffArr };
+        if (staffArr.length === 1) query.assignedTo = staffArr[0];
+        else query.assignedTo = { $in: staffArr };
       }
     }
 
     // 🔥 DATE FILTER
-    if (date) {
+    if (from || to) {
+      const start = from ? new Date(from) : new Date(0);
+      start.setHours(0, 0, 0, 0);
+      const end = to ? new Date(to) : new Date();
+      end.setHours(23, 59, 59, 999);
+      query.nextFollowupDate = { $gte: start, $lte: end };
+    } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
       end.setHours(23, 59, 59, 999);
-      query.createdAt = { $gte: start, $lte: end };
+      query.nextFollowupDate = { $gte: start, $lte: end };
     }
 
     const total = await LEAD.countDocuments(query);
@@ -1416,14 +1422,13 @@ exports.getWonLeads = async (req, res) => {
   }
 };
 
-// Get Lost Leads
 exports.getLostLeads = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const { search, source, staff, date } = req.query;
+    const { search, source, staff, date, from, to } = req.query;
 
     // First find the Lost status
     const lostStatus = await LeadStatus.findOne({ name: { $regex: /^lost$/i } }); // Case insensitive
@@ -1472,12 +1477,18 @@ exports.getLostLeads = async (req, res) => {
     }
 
     // 🔥 DATE FILTER
-    if (date) {
+    if (from || to) {
+      const start = from ? new Date(from) : new Date(0);
+      start.setHours(0, 0, 0, 0);
+      const end = to ? new Date(to) : new Date();
+      end.setHours(23, 59, 59, 999);
+      query.nextFollowupDate = { $gte: start, $lte: end };
+    } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
       end.setHours(23, 59, 59, 999);
-      query.createdAt = { $gte: start, $lte: end };
+      query.nextFollowupDate = { $gte: start, $lte: end };
     }
 
     const total = await LEAD.countDocuments(query);
@@ -1588,13 +1599,13 @@ exports.exportLeadsToExcel = async (req, res) => {
       start.setHours(0, 0, 0, 0);
       const end = to ? new Date(to) : new Date();
       end.setHours(23, 59, 59, 999);
-      query.createdAt = { $gte: start, $lte: end };
+      query.nextFollowupDate = { $gte: start, $lte: end };
     } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
       end.setHours(23, 59, 59, 999);
-      query.createdAt = { $gte: start, $lte: end };
+      query.nextFollowupDate = { $gte: start, $lte: end };
     }
 
     // OWN SCOPE
