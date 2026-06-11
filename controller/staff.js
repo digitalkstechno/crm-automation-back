@@ -74,7 +74,7 @@ exports.loginStaff = async (req, res) => {
 exports.fetchAllStaffs = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = req.query.limit ? parseInt(req.query.limit) : (req.query.all === "true" ? 1000 : 10);
     const skip = (page - 1) * limit;
 
     const search = req.query.search || "";
@@ -85,6 +85,10 @@ exports.fetchAllStaffs = async (req, res) => {
       if (perms.staff && perms.staff.readAll) {
         hasReadAll = true;
       }
+    }
+
+    if (req.query.all === "true") {
+      hasReadAll = true;
     }
 
     let matchQuery = {};

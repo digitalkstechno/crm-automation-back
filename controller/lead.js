@@ -453,7 +453,7 @@ exports.leadDelete = async (req, res) => {
 
 exports.fetchLeadsForKanban = async (req, res) => {
   try {
-    const { search, status, source, staff, date } = req.query;
+    const { search, status, source, staff, date, from, to } = req.query;
 
     const match = {};
     const myOnly = req.query.my === 'true';
@@ -512,7 +512,13 @@ exports.fetchLeadsForKanban = async (req, res) => {
     }
 
     // 🔥 DATE FILTER
-    if (date) {
+    if (from || to) {
+      const start = from ? new Date(from) : new Date(0);
+      start.setHours(0, 0, 0, 0);
+      const end = to ? new Date(to) : new Date();
+      end.setHours(23, 59, 59, 999);
+      match.createdAt = { $gte: start, $lte: end };
+    } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
@@ -562,7 +568,7 @@ exports.fetchLeadsForKanban = async (req, res) => {
 
 exports.fetchKanbanLeadsByStatus = async (req, res) => {
   try {
-    const { statusId, search, source, staff, date, page = 1, limit = 10 } = req.query;
+    const { statusId, search, source, staff, date, from, to, page = 1, limit = 10 } = req.query;
     const match = { leadStatus: new mongoose.Types.ObjectId(statusId) };
     const myOnly = req.query.my === 'true';
 
@@ -602,7 +608,13 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
       }
     }
 
-    if (date) {
+    if (from || to) {
+      const start = from ? new Date(from) : new Date(0);
+      start.setHours(0, 0, 0, 0);
+      const end = to ? new Date(to) : new Date();
+      end.setHours(23, 59, 59, 999);
+      match.createdAt = { $gte: start, $lte: end };
+    } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
@@ -674,7 +686,7 @@ exports.updateKanbanStatus = async (req, res) => {
 
 exports.getKanbanCounts = async (req, res) => {
   try {
-    const { search, status, source, staff, date } = req.query;
+    const { search, status, source, staff, date, from, to } = req.query;
 
     const match = {};
     const myOnly = req.query.my === 'true';
@@ -721,7 +733,13 @@ exports.getKanbanCounts = async (req, res) => {
     }
 
     // 🔥 DATE FILTER
-    if (date) {
+    if (from || to) {
+      const start = from ? new Date(from) : new Date(0);
+      start.setHours(0, 0, 0, 0);
+      const end = to ? new Date(to) : new Date();
+      end.setHours(23, 59, 59, 999);
+      match.createdAt = { $gte: start, $lte: end };
+    } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
