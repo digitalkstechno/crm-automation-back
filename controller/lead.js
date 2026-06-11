@@ -1607,7 +1607,8 @@ exports.exportLeadsToExcel = async (req, res) => {
       .populate("leadStatus", "name")
       .populate("leadSource", "name")
       .populate("assignedTo", "fullName email")
-      .populate("priority", "name");
+      .populate("priority", "name")
+      .populate("followUps.staff", "fullName");
 
     // ── Build Excel ───────────────────────────────────────────────────────────
     const workbook = new ExcelJS.Workbook();
@@ -1625,10 +1626,18 @@ exports.exportLeadsToExcel = async (req, res) => {
       { header: "Email", key: "email", width: 28 },
       { header: "Phone", key: "contact", width: 16 },
       { header: "Company", key: "company", width: 22 },
+      { header: "Address", key: "address", width: 25 },
       { header: "Lead Status", key: "status", width: 18 },
       { header: "Lead Source", key: "source", width: 18 },
       { header: "Assigned To", key: "assigned", width: 20 },
       { header: "Priority", key: "priority", width: 12 },
+      { header: "Next Follow-Up Date", key: "nextFollowupDate", width: 20 },
+      { header: "Next Follow-Up Time", key: "nextFollowupTime", width: 15 },
+      { header: "Primary Note", key: "note", width: 30 },
+      { header: "Amount Budget", key: "amountBudget", width: 15 },
+      { header: "Payment Amount", key: "paymentAmount", width: 15 },
+      { header: "Active", key: "isActive", width: 10 },
+      { header: "Follow-Up History", key: "followUpHistory", width: 55 },
       { header: "Created At", key: "createdAt", width: 18 },
     ];
 
@@ -1650,16 +1659,38 @@ exports.exportLeadsToExcel = async (req, res) => {
 
     // Fill data rows
     leads.forEach((lead, idx) => {
+      const followUpHistoryStr = Array.isArray(lead.followUps)
+        ? lead.followUps
+            .map((f, i) => {
+              const dateStr = f.date ? new Date(f.date).toLocaleDateString("en-IN") : "";
+              const timeStr = f.time || "";
+              const staffName = f.staff?.fullName || "System";
+              const noteText = f.note || "";
+              return `${i + 1}. [${dateStr} ${timeStr} - By: ${staffName}]: ${noteText}`;
+            })
+            .join("\n")
+        : "";
+
       const row = sheet.addRow({
         sno: idx + 1,
         fullName: lead.fullName || "",
         email: lead.email || "",
         contact: lead.contact || "",
         company: lead.companyName || "",
+        address: lead.address || "",
         status: lead.leadStatus?.name || "",
         source: lead.leadSource?.name || "",
         assigned: lead.assignedTo?.fullName || "",
         priority: lead.priority?.name || "",
+        nextFollowupDate: lead.nextFollowupDate
+          ? new Date(lead.nextFollowupDate).toLocaleDateString("en-IN")
+          : "",
+        nextFollowupTime: lead.nextFollowupTime || "",
+        note: lead.note || "",
+        amountBudget: lead.amountBudget || "",
+        paymentAmount: lead.paymentAmount !== undefined ? lead.paymentAmount : 0,
+        isActive: lead.isActive !== false ? "Yes" : "No",
+        followUpHistory: followUpHistoryStr,
         createdAt: lead.createdAt
           ? new Date(lead.createdAt).toLocaleDateString("en-IN")
           : "",
@@ -1677,12 +1708,14 @@ exports.exportLeadsToExcel = async (req, res) => {
       }
 
       row.eachCell((cell) => {
-        cell.alignment = { vertical: "middle", horizontal: "left" };
+        cell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
         cell.border = {
           bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
         };
       });
-      row.height = 22;
+
+      const lines = followUpHistoryStr ? followUpHistoryStr.split("\n").length : 1;
+      row.height = Math.max(22, lines * 15);
     });
 
     // Freeze header
