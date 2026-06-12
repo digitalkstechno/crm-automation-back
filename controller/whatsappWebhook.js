@@ -370,3 +370,146 @@ async function sendWhatsAppTemplate(recipientPhone, templateName, languageCode =
     }
   }
 }
+
+/**
+ * GET /v1/api/whatsapp-webhook/templates
+ * Fetches WhatsApp message templates from Meta / CRMBot API.
+ * Falls back to default mock templates if credentials are not configured or request fails.
+ */
+exports.getTemplates = async (req, res) => {
+  try {
+    let apiBaseUrl = "https://crmapi.crmbot.in/api/meta/v19.0";
+    let accessToken = "";
+    let phoneNumberId = "";
+
+    const configSetting = await Setting.findOne({ key: "whatsapp_config" });
+    if (configSetting && configSetting.value) {
+      if (configSetting.value.apiBaseUrl) apiBaseUrl = configSetting.value.apiBaseUrl;
+      if (configSetting.value.accessToken) accessToken = configSetting.value.accessToken;
+      if (configSetting.value.phoneNumberId) phoneNumberId = configSetting.value.phoneNumberId;
+    }
+
+    const fallbackTemplates = [
+      {
+        name: "welcome_hello",
+        language: "en",
+        bodyText: "Hello {{1}}! Welcome to our service. How can we help you today?",
+        parametersCount: 1
+      },
+      {
+        name: "price_details",
+        language: "en",
+        bodyText: "Hi {{1}}, here are the pricing details for {{2}}. Let us know if you want to proceed.",
+        parametersCount: 2
+      },
+      {
+        name: "campaign_interest",
+        language: "en",
+        bodyText: "Hello {{1}}! Thank you for showing interest in our campaign: {{2}}. One of our agents will contact you shortly.",
+        parametersCount: 2
+      }
+    ];
+
+    // Check if configured
+    const isConfigured = accessToken && 
+                         phoneNumberId && 
+                         !accessToken.includes("YOUR_") && 
+                         !phoneNumberId.includes("YOUR_");
+
+    if (!isConfigured) {
+      return res.status(200).json({
+        success: true,
+        isFallback: true,
+        error: "Credentials not configured or placeholder values detected.",
+        templates: fallbackTemplates
+      });
+    }
+
+    const cleanBaseUrl = apiBaseUrl.replace(/\/$/, "");
+    const authHeader = accessToken.startsWith("Bearer ") ? accessToken : `Bearer ${accessToken}`;
+
+    console.log(`📡 Fetching WABA ID for phone number ${phoneNumberId}...`);
+    
+    // Fetch WABA ID
+    const phoneRes = await axios.get(`${cleanBaseUrl}/${phoneNumberId}?fields=whatsapp_business_account_id`, {
+      headers: { Authorization: authHeader }
+    });
+
+    const wabaId = phoneRes.data.whatsapp_business_account_id;
+    if (!wabaId) {
+      console.warn("⚠️ WABA ID not found in response. Using fallbacks.");
+      return res.status(200).json({
+        success: true,
+        isFallback: true,
+        error: "Could not find WhatsApp Business Account ID for this phone number.",
+        templates: fallbackTemplates
+      });
+    }
+
+    console.log(`📡 Fetching templates for WABA ID ${wabaId}...`);
+    const templatesRes = await axios.get(`${cleanBaseUrl}/${wabaId}/message_templates?limit=100`, {
+      headers: { Authorization: authHeader }
+    });
+
+    const rawTemplates = templatesRes.data.data || [];
+    const parsedTemplates = rawTemplates.map(tpl => {
+      let bodyText = "";
+      let parametersCount = 0;
+
+      if (tpl.components) {
+        const bodyComp = tpl.components.find(c => c.type === "BODY");
+        if (bodyComp && bodyComp.text) {
+          bodyText = bodyComp.text;
+          // Count occurrences of {{number}}
+          const matches = bodyText.match(/\{\{\d+\}\}/g);
+          if (matches) {
+            const indexes = matches.map(m => parseInt(m.replace(/[^0-9]/g, ""), 10));
+            parametersCount = Math.max(...indexes, 0);
+          }
+        }
+      }
+
+      return {
+        name: tpl.name,
+        language: tpl.language || "en",
+        bodyText: bodyText,
+        parametersCount: parametersCount
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      isFallback: false,
+      templates: parsedTemplates.length > 0 ? parsedTemplates : fallbackTemplates
+    });
+
+  } catch (error) {
+    console.error("❌ Failed to fetch message templates from Meta API:", error.message);
+    const fallbackTemplates = [
+      {
+        name: "welcome_hello",
+        language: "en",
+        bodyText: "Hello {{1}}! Welcome to our service. How can we help you today?",
+        parametersCount: 1
+      },
+      {
+        name: "price_details",
+        language: "en",
+        bodyText: "Hi {{1}}, here are the pricing details for {{2}}. Let us know if you want to proceed.",
+        parametersCount: 2
+      },
+      {
+        name: "campaign_interest",
+        language: "en",
+        bodyText: "Hello {{1}}! Thank you for showing interest in our campaign: {{2}}. One of our agents will contact you shortly.",
+        parametersCount: 2
+      }
+    ];
+    return res.status(200).json({
+      success: true,
+      isFallback: true,
+      error: error.message || "Failed to reach WhatsApp templates API.",
+      templates: fallbackTemplates
+    });
+  }
+};
