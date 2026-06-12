@@ -14,7 +14,7 @@ exports.verifyWebhook = async (req, res) => {
   console.log("🔍 GET verifyWebhook incoming query params:", JSON.stringify(req.query));
   const mode = req.query["hub.mode"] || req.query.mode;
   const token = req.query["hub.verify_token"] || req.query.verify_token || req.query.token;
-  const challenge = req.query["hub.challenge"] || req.query.challenge;
+  const challenge = req.query["hub.challenge"] || req.query.challenge || req.query.challange;
 
   // 1. If a challenge is sent in the query, echo it back immediately to verify
   if (challenge) {
