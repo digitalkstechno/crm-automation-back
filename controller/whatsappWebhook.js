@@ -15,27 +15,30 @@ exports.verifyWebhook = async (req, res) => {
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
-  // Try to load verify token from settings DB first, fallback to env
-  let verifyToken = process.env.META_VERIFY_TOKEN || "MySecretToken123";
-  try {
-    const configSetting = await Setting.findOne({ key: "whatsapp_config" });
-    if (configSetting && configSetting.value && configSetting.value.verifyToken) {
-      verifyToken = configSetting.value.verifyToken;
-    }
-  } catch (err) {
-    console.error("Error loading verify token from settings:", err);
-  }
-
+  // 1. If it's a Meta/WhatsApp Developer handshake
   if (mode && token) {
+    let verifyToken = process.env.META_VERIFY_TOKEN || "MySecretToken123";
+    try {
+      const configSetting = await Setting.findOne({ key: "whatsapp_config" });
+      if (configSetting && configSetting.value && configSetting.value.verifyToken) {
+        verifyToken = configSetting.value.verifyToken;
+      }
+    } catch (err) {
+      console.error("Error loading verify token from settings:", err);
+    }
+
     if (mode === "subscribe" && token === verifyToken) {
-      console.log("✅ WhatsApp Webhook verified successfully!");
+      console.log("✅ Meta Webhook verified successfully!");
       return res.status(200).send(challenge);
     } else {
-      console.warn("❌ WhatsApp Webhook verification failed. Tokens do not match.");
+      console.warn("❌ Meta Webhook verification failed. Tokens do not match.");
       return res.sendStatus(403);
     }
   }
-  return res.sendStatus(400);
+
+  // 2. If it's a general third-party gateway check (simple GET verification check)
+  console.log("ℹ️ Received general Webhook verify ping (GET request).");
+  return res.status(200).send("Webhook verification endpoint active!");
 };
 
 /**
