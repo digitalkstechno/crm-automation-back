@@ -208,13 +208,16 @@ async function processIncomingMessage(contactNumber, profileName, messageText) {
 
     // 3. Match message content against keywords to determine template trigger
     const cleanMsgText = messageText.trim().toLowerCase();
+    console.log(`🔍 Checking keywords for clean text: "${cleanMsgText}"`);
     
     // Try to get keyword rules from settings database dynamically
     let keywordRules = null;
     const rulesSetting = await Setting.findOne({ key: "whatsapp_keyword_rules" });
     if (rulesSetting && rulesSetting.value) {
       keywordRules = rulesSetting.value;
+      console.log(`📂 Loaded ${Object.keys(keywordRules).length} rules from MongoDB settings.`);
     } else {
+      console.log("📂 MongoDB 'whatsapp_keyword_rules' setting is empty. Using fallback defaults.");
       // Fallback default keyword-to-template map if settings are not defined in DB
       // Default to language "en" and policy "deterministic" to match user's CRMBot curl
       keywordRules = {
@@ -229,14 +232,31 @@ async function processIncomingMessage(contactNumber, profileName, messageText) {
       };
     }
 
-    // Check if any keyword matches the message body as a whole word (using word boundary regex)
+    // Check if any keyword matches the message body
     let matchedRule = null;
+    let matchedKeyword = null;
     for (const keyword of Object.keys(keywordRules)) {
-      const escapedKeyword = keyword.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const regex = new RegExp(`\\b${escapedKeyword}\\b`, 'i');
-      if (regex.test(cleanMsgText)) {
-        matchedRule = keywordRules[keyword];
-        break;
+      const cleanKeyword = keyword.trim().toLowerCase();
+      
+      // If it's a short single word (only letters/digits, e.g. "price", "hello"), use word boundaries
+      if (/^[a-z0-9]+$/i.test(cleanKeyword)) {
+        const regex = new RegExp(`\\b${cleanKeyword}\\b`, 'i');
+        const isMatch = regex.test(cleanMsgText);
+        console.log(`   └─ Testing single-word boundary match: "${cleanKeyword}" -> ${isMatch ? "✅ MATCH" : "❌ NO"}`);
+        if (isMatch) {
+          matchedRule = keywordRules[keyword];
+          matchedKeyword = keyword;
+          break;
+        }
+      } else {
+        // If it's a phrase or contains special characters/spaces (e.g. "Hello! Can I get..."), check direct inclusion
+        const isMatch = cleanMsgText.includes(cleanKeyword);
+        console.log(`   └─ Testing phrase inclusion match: "${cleanKeyword}" -> ${isMatch ? "✅ MATCH" : "❌ NO"}`);
+        if (isMatch) {
+          matchedRule = keywordRules[keyword];
+          matchedKeyword = keyword;
+          break;
+        }
       }
     }
 
@@ -259,10 +279,10 @@ async function processIncomingMessage(contactNumber, profileName, messageText) {
         parameters.push({ type: "text", text: "Campaign Inquiry" });
       }
 
-      console.log(`🎯 Keyword match found! Triggering template "${templateName}" for ${formattedContact}`);
+      console.log(`🎯 Keyword match found! Keyword: "${matchedKeyword}" -> Triggering template: "${templateName}" for ${formattedContact}`);
       await sendWhatsAppTemplate(formattedContact, templateName, lang, parameters);
     } else {
-      console.log(`❓ No keyword matched message: "${messageText}". No template sent.`);
+      console.log(`❌ No keyword matched for incoming message: "${messageText}". No template sent.`);
     }
 
   } catch (error) {
@@ -341,9 +361,12 @@ async function sendWhatsAppTemplate(recipientPhone, templateName, languageCode =
       console.log(`✅ Template "${templateName}" request completed. Response:`, JSON.stringify(response.data));
     }
   } catch (error) {
-    console.error(
-      "❌ Failed to send WhatsApp template via CRMBot API:",
-      error.response ? error.response.data : error.message
-    );
+    console.error("❌ Failed to send WhatsApp template via CRMBot API.");
+    if (error.response) {
+      console.error(`   Status: ${error.response.status}`);
+      console.error("   Response Data:", JSON.stringify(error.response.data));
+    } else {
+      console.error(`   Error Message: ${error.message}`);
+    }
   }
 }
