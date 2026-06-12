@@ -12,39 +12,26 @@ const { incrementCount } = require("../utils/leadCountHelper");
  */
 exports.verifyWebhook = async (req, res) => {
   console.log("🔍 GET verifyWebhook incoming query params:", JSON.stringify(req.query));
-  const mode = req.query["hub.mode"] || req.query.mode;
-  const token = req.query["hub.verify_token"] || req.query.verify_token || req.query.token;
-  const challenge = req.query["hub.challenge"] || req.query.challenge || req.query.challange;
+  
+  const mode = req.query['hub.mode'] || req.query.mode;
+  const token = req.query['hub.verify_token'] || req.query.verify_token || req.query.token;
+  let challenge = req.query['challange'] || req.query['hub.challenge'] || req.query['challenge'];
 
-  // 1. If a challenge is sent in the query, echo it back immediately to verify
+  // Handle case where multiple challenge parameters are sent (Express makes it an array)
+  if (Array.isArray(challenge)) {
+    challenge = challenge[challenge.length - 1];
+  }
+
+  // Meta / Gateway verification logic
   if (challenge) {
-    // If it also includes a token, check it for security (Meta style)
-    if (mode && token) {
-      let verifyToken = process.env.META_VERIFY_TOKEN || "MySecretToken123";
-      try {
-        const configSetting = await Setting.findOne({ key: "whatsapp_config" });
-        if (configSetting && configSetting.value && configSetting.value.verifyToken) {
-          verifyToken = configSetting.value.verifyToken;
-        }
-      } catch (err) {
-        console.error("Error loading verify token from settings:", err);
-      }
-
-      if (mode === "subscribe" && token === verifyToken) {
-        console.log("✅ Meta Webhook verified successfully via challenge.");
-        return res.status(200).send(challenge);
-      } else {
-        console.warn("❌ Meta Webhook verification failed. Tokens do not match.");
-        return res.sendStatus(403);
-      }
-    }
-
-    // Otherwise, echo the third-party challenge directly (general provider style)
+    // Return the challenge as PLAIN TEXT
+    res.set('Content-Type', 'text/plain');
     console.log(`✅ Webhook verified successfully by echoing challenge: ${challenge}`);
     return res.status(200).send(challenge);
   }
 
-  // 2. If it's a general ping with no challenge parameter
+  // If it's a general ping with no challenge parameter
+  res.set('Content-Type', 'text/plain');
   console.log("ℹ️ Received general Webhook verify ping (GET request).");
   return res.status(200).send("Webhook verification endpoint active!");
 };
