@@ -9,6 +9,7 @@ router.use("/leadstatus", require("./leadStatus"));
 router.use("/taskstatus", require("./taskStatus"));
 router.use("/lead", require("./lead"));
 router.use("/meta-webhook", require("./metaLead"));
+router.use("/whatsapp-webhook", require("./whatsappWebhook"));
 router.use("/meta", require("./meta"));
 router.use("/leadlabel", require("./leadLabel"));
 router.use("/team", require("./team"));
