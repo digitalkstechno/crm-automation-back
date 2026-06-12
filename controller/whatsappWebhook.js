@@ -11,6 +11,7 @@ const { incrementCount } = require("../utils/leadCountHelper");
  * Handles the verification handshake from Meta (Facebook/WhatsApp Dev Console)
  */
 exports.verifyWebhook = async (req, res) => {
+  console.log("🔍 GET verifyWebhook incoming query params:", JSON.stringify(req.query));
   const mode = req.query["hub.mode"] || req.query.mode;
   const token = req.query["hub.verify_token"] || req.query.verify_token || req.query.token;
   const challenge = req.query["hub.challenge"] || req.query.challenge;
@@ -57,7 +58,7 @@ exports.handleWebhook = async (req, res) => {
     const body = req.body;
     console.log("📩 Incoming WhatsApp Webhook event body:", JSON.stringify(body, null, 2));
 
-    // Confirm that this is a WhatsApp API webhook event
+    // 1. Check if it is a standard Meta WhatsApp API webhook payload
     if (body.object === "whatsapp_business_account") {
       if (body.entry && body.entry.length > 0) {
         for (const entry of body.entry) {
@@ -97,7 +98,7 @@ exports.handleWebhook = async (req, res) => {
                       }
                     }
 
-                    console.log(`💬 Message received from ${profileName} (${fromNumber}): "${messageText}"`);
+                    console.log(`💬 Meta-style Msg received from ${profileName} (${fromNumber}): "${messageText}"`);
 
                     // Process message asynchronously so that we respond to Meta with a 200 OK immediately.
                     // Meta has a strict timeout policy for webhook responses.
@@ -114,7 +115,29 @@ exports.handleWebhook = async (req, res) => {
       return res.status(200).send("EVENT_RECEIVED");
     }
 
-    return res.sendStatus(404);
+    // 2. Fallback: Check if it's a flat/simplified webhook payload (common in third-party integrations like CRMBot)
+    // We look for common sender fields (from, phone, sender, contact) and message text
+    const fromNumber = body.from || body.phone || body.sender || body.contact || (body.message && body.message.from);
+    if (fromNumber) {
+      const profileName = body.name || body.profileName || body.username || (body.contact && body.contact.name) || "WhatsApp Lead";
+      let messageText = "";
+      if (typeof body.text === "string") messageText = body.text;
+      else if (body.text && typeof body.text.body === "string") messageText = body.text.body;
+      else if (body.message && typeof body.message.text === "string") messageText = body.message.text;
+      else if (body.message && body.message.text && typeof body.message.text.body === "string") messageText = body.message.text.body;
+      else messageText = body.body || body.messageText || "";
+
+      console.log(`💬 Third-party Msg received from ${profileName} (${fromNumber}): "${messageText}"`);
+
+      // Process message asynchronously
+      processIncomingMessage(fromNumber.toString(), profileName, messageText).catch(err => {
+        console.error("❌ Error in async third-party message processing:", err);
+      });
+      return res.status(200).send("EVENT_RECEIVED");
+    }
+
+    console.warn("⚠️ Webhook event format unrecognized.");
+    return res.status(200).send("UNRECOGNIZED_FORMAT");
   } catch (error) {
     console.error("❌ Error inside WhatsApp webhook handler:", error);
     return res.status(500).send("INTERNAL_SERVER_ERROR");
