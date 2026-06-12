@@ -269,8 +269,15 @@ async function processIncomingMessage(contactNumber, profileName, messageText) {
       if (matchedRule.parameters && Array.isArray(matchedRule.parameters)) {
         matchedRule.parameters.forEach(param => {
           let textVal = param;
-          if (textVal === "{{leadName}}") textVal = profileName || "Client";
-          if (textVal === "{{contact}}") textVal = formattedContact;
+          // Replace dynamic placeholders safely using regex
+          textVal = textVal.replace(/\{\{leadName\}\}/g, profileName || "Client");
+          textVal = textVal.replace(/\{\{contact\}\}/g, formattedContact);
+          
+          if (textVal.includes("{{orderId}}")) {
+            const randomId = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+            textVal = textVal.replace(/\{\{orderId\}\}/g, randomId);
+          }
+          
           parameters.push({ type: "text", text: textVal });
         });
       } else {
@@ -378,15 +385,17 @@ async function sendWhatsAppTemplate(recipientPhone, templateName, languageCode =
  */
 exports.getTemplates = async (req, res) => {
   try {
-    let apiBaseUrl = "https://crmapi.crmbot.in/api/meta/v19.0";
-    let accessToken = "";
-    let phoneNumberId = "";
+    let apiBaseUrl = process.env.WHATSAPP_API_BASE_URL || "https://crmapi.crmbot.in/api/meta/v19.0";
+    let accessToken = process.env.WHATSAPP_ACCESS_TOKEN || "";
+    let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || "";
+    let wabaId = process.env.WHATSAPP_WABA_ID || "";
 
     const configSetting = await Setting.findOne({ key: "whatsapp_config" });
     if (configSetting && configSetting.value) {
       if (configSetting.value.apiBaseUrl) apiBaseUrl = configSetting.value.apiBaseUrl;
       if (configSetting.value.accessToken) accessToken = configSetting.value.accessToken;
       if (configSetting.value.phoneNumberId) phoneNumberId = configSetting.value.phoneNumberId;
+      if (configSetting.value.wabaId) wabaId = configSetting.value.wabaId;
     }
 
     const fallbackTemplates = [
@@ -428,20 +437,26 @@ exports.getTemplates = async (req, res) => {
     const cleanBaseUrl = apiBaseUrl.replace(/\/$/, "");
     const authHeader = accessToken.startsWith("Bearer ") ? accessToken : `Bearer ${accessToken}`;
 
-    console.log(`📡 Fetching WABA ID for phone number ${phoneNumberId}...`);
-    
-    // Fetch WABA ID
-    const phoneRes = await axios.get(`${cleanBaseUrl}/${phoneNumberId}?fields=whatsapp_business_account_id`, {
-      headers: { Authorization: authHeader }
-    });
-
-    const wabaId = phoneRes.data.whatsapp_business_account_id;
+    // If wabaId is not configured, try fetching it dynamically from Meta Graph API
     if (!wabaId) {
-      console.warn("⚠️ WABA ID not found in response. Using fallbacks.");
+      console.log(`📡 wabaId is not configured. Fetching dynamically for phone number ${phoneNumberId}...`);
+      try {
+        const phoneRes = await axios.get(`${cleanBaseUrl}/${phoneNumberId}?fields=whatsapp_business_account`, {
+          headers: { Authorization: authHeader }
+        });
+        wabaId = phoneRes.data.whatsapp_business_account_id || 
+                 (phoneRes.data.whatsapp_business_account && phoneRes.data.whatsapp_business_account.id);
+      } catch (err) {
+        console.warn("⚠️ Dynamic WABA ID fetch failed:", err.message);
+      }
+    }
+
+    if (!wabaId) {
+      console.warn("⚠️ WABA ID is missing. Using fallbacks.");
       return res.status(200).json({
         success: true,
         isFallback: true,
-        error: "Could not find WhatsApp Business Account ID for this phone number.",
+        error: "WABA ID is not configured. Since CRMBot's proxy API limits automatic retrieval, please enter your WhatsApp Business Account ID (WABA ID) in the settings panel to fetch templates.",
         templates: fallbackTemplates
       });
     }
