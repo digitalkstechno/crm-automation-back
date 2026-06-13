@@ -132,6 +132,18 @@ exports.handleWebhook = async (req, res) => {
 };
 
 /**
+ * Normalizes text unicode-safely by removing all punctuation and collapsing spaces.
+ */
+function normalizeText(text) {
+  if (!text) return "";
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .replace(/\s+/g, " ");
+}
+
+/**
  * Handles database operations and keyword-template matching
  */
 async function processIncomingMessage(contactNumber, profileName, messageText) {
@@ -232,31 +244,24 @@ async function processIncomingMessage(contactNumber, profileName, messageText) {
       };
     }
 
-    // Check if any keyword matches the message body
+    // Check if any keyword matches the message body exactly (normalized)
     let matchedRule = null;
     let matchedKeyword = null;
+    const normalizedMsg = normalizeText(messageText);
+
     for (const keyword of Object.keys(keywordRules)) {
       const cleanKeyword = keyword.trim().toLowerCase();
+      const normalizedKeyword = normalizeText(keyword);
       
-      // If it's a short single word (only letters/digits, e.g. "price", "hello"), use word boundaries
-      if (/^[a-z0-9]+$/i.test(cleanKeyword)) {
-        const regex = new RegExp(`\\b${cleanKeyword}\\b`, 'i');
-        const isMatch = regex.test(cleanMsgText);
-        console.log(`   └─ Testing single-word boundary match: "${cleanKeyword}" -> ${isMatch ? "✅ MATCH" : "❌ NO"}`);
-        if (isMatch) {
-          matchedRule = keywordRules[keyword];
-          matchedKeyword = keyword;
-          break;
-        }
-      } else {
-        // If it's a phrase or contains special characters/spaces (e.g. "Hello! Can I get..."), check direct inclusion
-        const isMatch = cleanMsgText.includes(cleanKeyword);
-        console.log(`   └─ Testing phrase inclusion match: "${cleanKeyword}" -> ${isMatch ? "✅ MATCH" : "❌ NO"}`);
-        if (isMatch) {
-          matchedRule = keywordRules[keyword];
-          matchedKeyword = keyword;
-          break;
-        }
+      const isExactMatch = cleanMsgText === cleanKeyword;
+      const isNormalizedMatch = normalizedMsg === normalizedKeyword;
+
+      console.log(`   └─ Testing keyword match for "${keyword}": exact? ${isExactMatch ? "✅" : "❌"} | normalized? ${isNormalizedMatch ? "✅" : "❌"}`);
+
+      if (isExactMatch || isNormalizedMatch) {
+        matchedRule = keywordRules[keyword];
+        matchedKeyword = keyword;
+        break;
       }
     }
 
