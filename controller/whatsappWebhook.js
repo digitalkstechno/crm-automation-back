@@ -154,8 +154,74 @@ async function processIncomingMessage(contactNumber, profileName, messageText) {
       formattedContact = "91" + formattedContact;
     }
 
-    // 2. Check if the lead already exists in our database
-    let existingLead = await Lead.findOne({ contact: formattedContact });
+    // 2. Match message content against keywords to determine template trigger FIRST
+    const cleanMsgText = messageText.trim().toLowerCase();
+    console.log(`🔍 Checking keywords for clean text: "${cleanMsgText}"`);
+    
+    // Try to get keyword rules from settings database dynamically
+    let keywordRules = null;
+    const rulesSetting = await Setting.findOne({ key: "whatsapp_keyword_rules" });
+    if (rulesSetting && rulesSetting.value) {
+      keywordRules = rulesSetting.value;
+      console.log(`📂 Loaded ${Object.keys(keywordRules).length} rules from MongoDB settings.`);
+    } else {
+      console.log("📂 MongoDB 'whatsapp_keyword_rules' setting is empty. Using fallback defaults.");
+      // Fallback default keyword-to-template map if settings are not defined in DB
+      // Default to language "en" and policy "deterministic" to match user's CRMBot curl
+      keywordRules = {
+        "hello": { template: "welcome_hello", lang: "en" },
+        "hi": { template: "welcome_hello", lang: "en" },
+        "hey": { template: "welcome_hello", lang: "en" },
+        "price": { template: "price_details", lang: "en" },
+        "cost": { template: "price_details", lang: "en" },
+        "pricing": { template: "price_details", lang: "en" },
+        "interested": { template: "campaign_interest", lang: "en" },
+        "join": { template: "campaign_interest", lang: "en" }
+      };
+    }
+
+    // Check if any keyword matches the message body exactly (normalized)
+    let matchedRule = null;
+    let matchedKeyword = null;
+    const normalizedMsg = normalizeText(messageText);
+
+    for (const keyword of Object.keys(keywordRules)) {
+      const cleanKeyword = keyword.trim().toLowerCase();
+      const normalizedKeyword = normalizeText(keyword);
+      
+      const isExactMatch = cleanMsgText === cleanKeyword;
+      const isNormalizedMatch = normalizedMsg === normalizedKeyword;
+
+      console.log(`   └─ Testing keyword match for "${keyword}": exact? ${isExactMatch ? "✅" : "❌"} | normalized? ${isNormalizedMatch ? "✅" : "❌"}`);
+
+      if (isExactMatch || isNormalizedMatch) {
+        matchedRule = keywordRules[keyword];
+        matchedKeyword = keyword;
+        break;
+      }
+    }
+
+    // If no keyword matched, exit immediately without creating or modifying leads
+    if (!matchedRule) {
+      console.log(`❌ No keyword matched for incoming message: "${messageText}". Skipping lead processing and template sending.`);
+      return;
+    }
+
+    // 3. Since a keyword matched, check if the lead already exists in our database
+    const last10 = formattedContact.slice(-10);
+    let existingLead = null;
+    if (last10.length === 10) {
+      existingLead = await Lead.findOne({
+        $or: [
+          { contact: formattedContact },
+          { contact: last10 },
+          { contact: "91" + last10 },
+          { contact: new RegExp(last10 + "$") }
+        ]
+      });
+    } else {
+      existingLead = await Lead.findOne({ contact: formattedContact });
+    }
 
     if (!existingLead) {
       console.log(`🆕 Creating new Lead for ${profileName} (${formattedContact})...`);
@@ -218,84 +284,34 @@ async function processIncomingMessage(contactNumber, profileName, messageText) {
       await Lead.findByIdAndUpdate(existingLead._id, { note: updatedNote });
     }
 
-    // 3. Match message content against keywords to determine template trigger
-    const cleanMsgText = messageText.trim().toLowerCase();
-    console.log(`🔍 Checking keywords for clean text: "${cleanMsgText}"`);
+    // 4. Send WhatsApp template since keyword matched
+    const templateName = matchedRule.template;
+    const lang = matchedRule.lang || "en";
     
-    // Try to get keyword rules from settings database dynamically
-    let keywordRules = null;
-    const rulesSetting = await Setting.findOne({ key: "whatsapp_keyword_rules" });
-    if (rulesSetting && rulesSetting.value) {
-      keywordRules = rulesSetting.value;
-      console.log(`📂 Loaded ${Object.keys(keywordRules).length} rules from MongoDB settings.`);
+    // Resolve template parameters dynamically
+    const parameters = [];
+    if (matchedRule.parameters && Array.isArray(matchedRule.parameters)) {
+      matchedRule.parameters.forEach(param => {
+        let textVal = param;
+        // Replace dynamic placeholders safely using regex
+        textVal = textVal.replace(/\{\{leadName\}\}/g, profileName || "Client");
+        textVal = textVal.replace(/\{\{contact\}\}/g, formattedContact);
+        
+        if (textVal.includes("{{orderId}}")) {
+          const randomId = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+          textVal = textVal.replace(/\{\{orderId\}\}/g, randomId);
+        }
+        
+        parameters.push({ type: "text", text: textVal });
+      });
     } else {
-      console.log("📂 MongoDB 'whatsapp_keyword_rules' setting is empty. Using fallback defaults.");
-      // Fallback default keyword-to-template map if settings are not defined in DB
-      // Default to language "en" and policy "deterministic" to match user's CRMBot curl
-      keywordRules = {
-        "hello": { template: "welcome_hello", lang: "en" },
-        "hi": { template: "welcome_hello", lang: "en" },
-        "hey": { template: "welcome_hello", lang: "en" },
-        "price": { template: "price_details", lang: "en" },
-        "cost": { template: "price_details", lang: "en" },
-        "pricing": { template: "price_details", lang: "en" },
-        "interested": { template: "campaign_interest", lang: "en" },
-        "join": { template: "campaign_interest", lang: "en" }
-      };
+      // Fallback default components parameters matching the user's curl (2 text parameters)
+      parameters.push({ type: "text", text: profileName || "Client" });
+      parameters.push({ type: "text", text: "Campaign Inquiry" });
     }
 
-    // Check if any keyword matches the message body exactly (normalized)
-    let matchedRule = null;
-    let matchedKeyword = null;
-    const normalizedMsg = normalizeText(messageText);
-
-    for (const keyword of Object.keys(keywordRules)) {
-      const cleanKeyword = keyword.trim().toLowerCase();
-      const normalizedKeyword = normalizeText(keyword);
-      
-      const isExactMatch = cleanMsgText === cleanKeyword;
-      const isNormalizedMatch = normalizedMsg === normalizedKeyword;
-
-      console.log(`   └─ Testing keyword match for "${keyword}": exact? ${isExactMatch ? "✅" : "❌"} | normalized? ${isNormalizedMatch ? "✅" : "❌"}`);
-
-      if (isExactMatch || isNormalizedMatch) {
-        matchedRule = keywordRules[keyword];
-        matchedKeyword = keyword;
-        break;
-      }
-    }
-
-    if (matchedRule) {
-      const templateName = matchedRule.template;
-      const lang = matchedRule.lang || "en";
-      
-      // Resolve template parameters dynamically
-      const parameters = [];
-      if (matchedRule.parameters && Array.isArray(matchedRule.parameters)) {
-        matchedRule.parameters.forEach(param => {
-          let textVal = param;
-          // Replace dynamic placeholders safely using regex
-          textVal = textVal.replace(/\{\{leadName\}\}/g, profileName || "Client");
-          textVal = textVal.replace(/\{\{contact\}\}/g, formattedContact);
-          
-          if (textVal.includes("{{orderId}}")) {
-            const randomId = "ORD-" + Math.floor(100000 + Math.random() * 900000);
-            textVal = textVal.replace(/\{\{orderId\}\}/g, randomId);
-          }
-          
-          parameters.push({ type: "text", text: textVal });
-        });
-      } else {
-        // Fallback default components parameters matching the user's curl (2 text parameters)
-        parameters.push({ type: "text", text: profileName || "Client" });
-        parameters.push({ type: "text", text: "Campaign Inquiry" });
-      }
-
-      console.log(`🎯 Keyword match found! Keyword: "${matchedKeyword}" -> Triggering template: "${templateName}" for ${formattedContact}`);
-      await sendWhatsAppTemplate(formattedContact, templateName, lang, parameters);
-    } else {
-      console.log(`❌ No keyword matched for incoming message: "${messageText}". No template sent.`);
-    }
+    console.log(`🎯 Keyword match found! Keyword: "${matchedKeyword}" -> Triggering template: "${templateName}" for ${formattedContact}`);
+    await sendWhatsAppTemplate(formattedContact, templateName, lang, parameters);
 
   } catch (error) {
     console.error("❌ Error processing incoming WhatsApp event:", error);
