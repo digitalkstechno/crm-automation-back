@@ -334,9 +334,9 @@ async function sendWhatsAppTemplate(recipientPhone, templateName, languageCode =
 
     const configSetting = await Setting.findOne({ key: "whatsapp_config" });
     if (configSetting && configSetting.value) {
-      if (configSetting.value.apiBaseUrl) apiBaseUrl = configSetting.value.apiBaseUrl;
-      if (configSetting.value.accessToken) accessToken = configSetting.value.accessToken;
-      if (configSetting.value.phoneNumberId) phoneNumberId = configSetting.value.phoneNumberId;
+      apiBaseUrl = getNonPlaceholderValue(configSetting.value.apiBaseUrl, apiBaseUrl);
+      accessToken = getNonPlaceholderValue(configSetting.value.accessToken, accessToken);
+      phoneNumberId = getNonPlaceholderValue(configSetting.value.phoneNumberId, phoneNumberId);
     }
 
     // Check if WhatsApp configuration is present and not default placeholders
@@ -417,10 +417,10 @@ exports.getTemplates = async (req, res) => {
 
     const configSetting = await Setting.findOne({ key: "whatsapp_config" });
     if (configSetting && configSetting.value) {
-      if (configSetting.value.apiBaseUrl) apiBaseUrl = configSetting.value.apiBaseUrl;
-      if (configSetting.value.accessToken) accessToken = configSetting.value.accessToken;
-      if (configSetting.value.phoneNumberId) phoneNumberId = configSetting.value.phoneNumberId;
-      if (configSetting.value.wabaId) wabaId = configSetting.value.wabaId;
+      apiBaseUrl = getNonPlaceholderValue(configSetting.value.apiBaseUrl, apiBaseUrl);
+      accessToken = getNonPlaceholderValue(configSetting.value.accessToken, accessToken);
+      phoneNumberId = getNonPlaceholderValue(configSetting.value.phoneNumberId, phoneNumberId);
+      wabaId = getNonPlaceholderValue(configSetting.value.wabaId, wabaId);
     }
 
     const fallbackTemplates = [
@@ -553,3 +553,15 @@ exports.getTemplates = async (req, res) => {
     });
   }
 };
+
+/**
+ * Helper to prevent placeholder credentials from DB from overriding env variables
+ */
+function getNonPlaceholderValue(dbValue, envValue) {
+  if (!dbValue) return envValue;
+  const str = String(dbValue).trim();
+  if (!str || str.startsWith("YOUR_") || str.toLowerCase().includes("placeholder")) {
+    return envValue;
+  }
+  return dbValue;
+}
