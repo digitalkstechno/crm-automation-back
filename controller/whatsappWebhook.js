@@ -284,34 +284,38 @@ async function processIncomingMessage(contactNumber, profileName, messageText) {
       await Lead.findByIdAndUpdate(existingLead._id, { note: updatedNote });
     }
 
-    // 4. Send WhatsApp template since keyword matched
-    const templateName = matchedRule.template;
-    const lang = matchedRule.lang || "en";
-    
-    // Resolve template parameters dynamically
-    const parameters = [];
-    if (matchedRule.parameters && Array.isArray(matchedRule.parameters)) {
-      matchedRule.parameters.forEach(param => {
-        let textVal = param;
-        // Replace dynamic placeholders safely using regex
-        textVal = textVal.replace(/\{\{leadName\}\}/g, profileName || "Client");
-        textVal = textVal.replace(/\{\{contact\}\}/g, formattedContact);
-        
-        if (textVal.includes("{{orderId}}")) {
-          const randomId = "ORD-" + Math.floor(100000 + Math.random() * 900000);
-          textVal = textVal.replace(/\{\{orderId\}\}/g, randomId);
-        }
-        
-        parameters.push({ type: "text", text: textVal });
-      });
-    } else {
-      // Fallback default components parameters matching the user's curl (2 text parameters)
-      parameters.push({ type: "text", text: profileName || "Client" });
-      parameters.push({ type: "text", text: "Campaign Inquiry" });
-    }
+    // 4. Send WhatsApp template since keyword matched (only if sendTemplate toggle is not OFF)
+    if (matchedRule.sendTemplate !== false) {
+      const templateName = matchedRule.template;
+      const lang = matchedRule.lang || "en";
+      
+      // Resolve template parameters dynamically
+      const parameters = [];
+      if (matchedRule.parameters && Array.isArray(matchedRule.parameters)) {
+        matchedRule.parameters.forEach(param => {
+          let textVal = param;
+          // Replace dynamic placeholders safely using regex
+          textVal = textVal.replace(/\{\{leadName\}\}/g, profileName || "Client");
+          textVal = textVal.replace(/\{\{contact\}\}/g, formattedContact);
+          
+          if (textVal.includes("{{orderId}}")) {
+            const randomId = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+            textVal = textVal.replace(/\{\{orderId\}\}/g, randomId);
+          }
+          
+          parameters.push({ type: "text", text: textVal });
+        });
+      } else {
+        // Fallback default components parameters matching the user's curl (2 text parameters)
+        parameters.push({ type: "text", text: profileName || "Client" });
+        parameters.push({ type: "text", text: "Campaign Inquiry" });
+      }
 
-    console.log(`🎯 Keyword match found! Keyword: "${matchedKeyword}" -> Triggering template: "${templateName}" for ${formattedContact}`);
-    await sendWhatsAppTemplate(formattedContact, templateName, lang, parameters);
+      console.log(`🎯 Keyword match found! Keyword: "${matchedKeyword}" -> Triggering template: "${templateName}" for ${formattedContact}`);
+      await sendWhatsAppTemplate(formattedContact, templateName, lang, parameters);
+    } else {
+      console.log(`ℹ️ Auto-Reply template toggle is OFF for matched keyword rule "${matchedKeyword}". Lead generated/updated but template sending was skipped.`);
+    }
 
   } catch (error) {
     console.error("❌ Error processing incoming WhatsApp event:", error);
