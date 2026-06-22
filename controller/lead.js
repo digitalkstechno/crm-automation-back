@@ -571,10 +571,13 @@ exports.fetchLeadsForKanban = async (req, res) => {
           .sort(sortObj)
           .limit(20); // Show more leads in kanban
 
+        const totalCount = await LEAD.countDocuments(leadMatch);
+
         return {
           statusId: status._id,
           statusName: status.name,
           leads,
+          totalCount,
         };
       })
     );
