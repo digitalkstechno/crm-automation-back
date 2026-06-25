@@ -23,6 +23,9 @@ exports.fetchKanbanTasksByStatus = async (req, res) => {
     if (myTasksOnly) {
       query.assignedUsers = req.user._id;
     }
+    if (req.query.organization) {
+      query.organization = req.query.organization;
+    }
 
     const totalItems = await Task.countDocuments(query);
     const tasks = await Task.find(query)
@@ -32,7 +35,8 @@ exports.fetchKanbanTasksByStatus = async (req, res) => {
       .populate("assignedUsers", "fullName email")
       .populate("assignedTeams", "name")
       .populate("createdBy", "fullName")
-      .populate("taskStatus");
+      .populate("taskStatus")
+      .populate("organization", "name");
 
     return res.status(200).json({
       status: "Success",
@@ -72,6 +76,7 @@ exports.createTask = async (req, res) => {
       priority,
       assignedUsers: parseIds(req.body.assignedUsers),
       assignedTeams: parseIds(req.body.assignedTeams),
+      organization: sanitizeObjectId(req.body.organization),
       attachments,
       createdBy: req.user?._id,
       taskStatus: sanitizeObjectId(taskStatus),
@@ -130,6 +135,7 @@ exports.getAllTasks = async (req, res) => {
     }
     
     if (req.query.priority) query.priority = req.query.priority;
+    if (req.query.organization) query.organization = req.query.organization;
 
     const total = await Task.countDocuments(query);
     const tasks = await Task.find(query)
@@ -137,7 +143,8 @@ exports.getAllTasks = async (req, res) => {
       .populate("assignedUsers", "fullName email")
       .populate("assignedTeams", "name")
       .populate("createdBy", "fullName")
-      .populate("taskStatus");
+      .populate("taskStatus")
+      .populate("organization", "name");
 
     return res.status(200).json({
       status: "Success",
@@ -155,7 +162,8 @@ exports.getTaskById = async (req, res) => {
       .populate("assignedUsers", "fullName email")
       .populate("assignedTeams", "name")
       .populate("createdBy", "fullName")
-      .populate("taskStatus");
+      .populate("taskStatus")
+      .populate("organization", "name");
     if (!task) throw new Error("Task not found");
     return res.status(200).json({ status: "Success", data: task });
   } catch (error) {
@@ -176,6 +184,7 @@ exports.updateTask = async (req, res) => {
     const updateData = { ...req.body };
     if (req.body.assignedUsers !== undefined) updateData.assignedUsers = parseIds(req.body.assignedUsers);
     if (req.body.assignedTeams !== undefined) updateData.assignedTeams = parseIds(req.body.assignedTeams);
+    if (req.body.organization !== undefined) updateData.organization = sanitizeObjectId(req.body.organization);
 
     // Handle status explicitly if provided
     if (req.body.taskStatus !== undefined) {
@@ -245,6 +254,7 @@ exports.getMyTasks = async (req, res) => {
     }
     
     if (req.query.priority) query.priority = req.query.priority;
+    if (req.query.organization) query.organization = req.query.organization;
 
     const total = await Task.countDocuments(query);
     const tasks = await Task.find(query)
@@ -252,7 +262,8 @@ exports.getMyTasks = async (req, res) => {
       .populate("assignedUsers", "fullName email")
       .populate("assignedTeams", "name")
       .populate("createdBy", "fullName")
-      .populate("taskStatus");
+      .populate("taskStatus")
+      .populate("organization", "name");
 
     return res.status(200).json({
       status: "Success",
@@ -378,6 +389,9 @@ exports.getTasksForKanban = async (req, res) => {
     if (myTasksOnly) {
       baseQuery.assignedUsers = req.user._id;
     }
+    if (req.query.organization) {
+      baseQuery.organization = req.query.organization;
+    }
 
     // Get all tasks with their statuses
     const allTasks = await Task.find(baseQuery)
@@ -385,6 +399,7 @@ exports.getTasksForKanban = async (req, res) => {
       .populate("assignedTeams", "name")
       .populate("createdBy", "fullName")
       .populate("taskStatus")
+      .populate("organization", "name")
       .sort({ updatedAt: 1 });
 
     // Group tasks by status

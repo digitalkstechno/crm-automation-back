@@ -510,18 +510,13 @@ exports.fetchLeadsForKanban = async (req, res) => {
     const kanbanData = await Promise.all(
       statusesToFetch.map(async (status) => {
         const leadMatch = { ...match, leadStatus: status._id };
-        const leads = await LEAD.find(leadMatch)
-          .populate("leadStatus")
-          .populate("leadSource")
-          .populate("leadLabel")
-          .populate("assignedTo")
-          .sort({ createdAt: -1 })
-          .limit(20); // Show more leads in kanban
+        const totalCount = await LEAD.countDocuments(leadMatch);
 
         return {
           statusId: status._id,
           statusName: status.name,
-          leads,
+          totalCount,
+          leads: [], // empty array, frontend lazy-loads this via /kanban-status
         };
       })
     );
@@ -1206,7 +1201,10 @@ exports.getWonLeads = async (req, res) => {
       });
     }
 
-    const match = {};
+    const match = {
+      leadStatus: wonStatus._id,
+      isActive: true
+    };
     const myOnly = req.query.my === 'true';
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       const myTeams = req.user.teams || [];
@@ -1257,12 +1255,12 @@ exports.getWonLeads = async (req, res) => {
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
       end.setHours(23, 59, 59, 999);
-      query.createdAt = { $gte: start, $lte: end };
+      match.createdAt = { $gte: start, $lte: end };
     }
 
-    const total = await LEAD.countDocuments(query);
+    const total = await LEAD.countDocuments(match);
 
-    const leads = await LEAD.find(query)
+    const leads = await LEAD.find(match)
       .populate("leadStatus")
       .populate("leadSource")
       .populate("assignedTo")
@@ -1321,8 +1319,14 @@ exports.getLostLeads = async (req, res) => {
       isActive: true
     };
 
-    if (req.leadScope === "own" && req.user && req.user._id) {
-      query.assignedTo = req.user._id;
+    const myOnly = req.query.my === 'true';
+    if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
+      const myTeams = req.user.teams || [];
+      const ledTeams = await Team.find({ _id: { $in: myTeams }, teamLeader: req.user._id }).select("_id");
+      const ledTeamIds = ledTeams.map(t => t._id);
+      const teamMembers = await STAFF.find({ teams: { $in: ledTeamIds } }).select("_id");
+      const teamMemberIds = teamMembers.map(m => m._id);
+      query.assignedTo = { $in: [req.user._id, ...teamMemberIds].map(id => new mongoose.Types.ObjectId(id)) };
     }
 
     // 🔥 SEARCH FILTER

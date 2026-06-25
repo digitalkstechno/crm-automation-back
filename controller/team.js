@@ -2,7 +2,12 @@ const Team = require("../model/team");
 
 exports.createTeam = async (req, res) => {
   try {
-    const team = await Team.create({ name: req.body.name, teamLeader: req.body.teamLeader });
+    const { name, teamLeader, organization } = req.body;
+    const team = await Team.create({ 
+      name, 
+      teamLeader: teamLeader || null, 
+      organization: organization || null 
+    });
     res.status(201).json({ status: "Success", message: "Team created successfully", data: team });
   } catch (error) {
     res.status(400).json({ status: "Fail", message: error.message });
@@ -17,8 +22,17 @@ exports.fetchAllTeams = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const query = { name: { $regex: search, $options: "i" } };
+    if (req.query.organization) {
+      query.organization = req.query.organization;
+    }
+
     const total = await Team.countDocuments(query);
-    const data = await Team.find(query).populate("teamLeader", "fullName email").skip(skip).limit(limit).sort({ createdAt: -1 });
+    const data = await Team.find(query)
+      .populate("teamLeader", "fullName email")
+      .populate("organization", "name")
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       status: "Success",
@@ -33,7 +47,16 @@ exports.fetchAllTeams = async (req, res) => {
 
 exports.updateTeam = async (req, res) => {
   try {
-    const team = await Team.findByIdAndUpdate(req.params.id, { name: req.body.name, teamLeader: req.body.teamLeader }, { new: true });
+    const { name, teamLeader, organization } = req.body;
+    const team = await Team.findByIdAndUpdate(
+      req.params.id, 
+      { 
+        name, 
+        teamLeader: teamLeader || null,
+        organization: organization || null
+      }, 
+      { new: true }
+    );
     if (!team) throw new Error("Team not found");
     res.status(200).json({ status: "Success", message: "Team updated successfully", data: team });
   } catch (error) {

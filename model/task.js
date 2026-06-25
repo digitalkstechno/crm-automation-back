@@ -14,6 +14,7 @@ const TaskSchema = new mongoose.Schema(
     },
     assignedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "Staff" }],
     assignedTeams: [{ type: mongoose.Schema.Types.ObjectId, ref: "Team" }],
+    organization: { type: mongoose.Schema.Types.ObjectId, ref: "Organization" },
     attachments: [
       {
         originalName: String,

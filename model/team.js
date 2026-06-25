@@ -5,6 +5,7 @@ let TeamSchema = new Schema(
   {
     name: { type: String, required: true, unique: true, trim: true },
     teamLeader: { type: mongoose.Schema.Types.ObjectId, ref: "Staff" },
+    organization: { type: mongoose.Schema.Types.ObjectId, ref: "Organization" },
   },
   { timestamps: true }
 );
