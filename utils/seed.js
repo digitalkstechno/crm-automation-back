@@ -117,11 +117,11 @@ async function seedData() {
     });
 
     // 3. Staff (Users) with Hashed Passwords and Org/Team associations
-    const hashedPass = encryptData("password123");
+    const hashedPass = encryptData("123456");
 
     const adminUser = await Staff.create({
-      fullName: "Manav Admin",
-      email: "admin@crm.com",
+      fullName: "Admin",
+      email: "admin@gmail.com",
       countryCode: "+91",
       phone: "9876543210",
       password: hashedPass,
