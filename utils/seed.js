@@ -215,6 +215,10 @@ async function seedData() {
       let dom = getRandom(domains);
       let assignedStaff = getRandom(staffList);
       
+      let leadStatusObj = getRandom(leadStatuses);
+      let isWon = leadStatusObj.name.toLowerCase() === 'won';
+      let isLost = leadStatusObj.name.toLowerCase() === 'lost';
+
       let lead = await Lead.create({
         fullName: `${fName} ${lName}`,
         countryCode: getRandom(countryCodes),
@@ -222,12 +226,18 @@ async function seedData() {
         email: `${fName.toLowerCase()}.${lName.toLowerCase()}@${dom}`,
         companyName: comp,
         address: `${Math.floor(Math.random() * 500)} Business Park, IT City`,
-        leadStatus: getRandom(leadStatuses)._id,
+        leadStatus: leadStatusObj._id,
         leadSource: getRandom(leadSources)._id,
         leadLabel: [getRandom(leadLabels)._id],
         assignedTo: assignedStaff._id,
         createdAt: createdDate,
         nextFollowupDate: new Date(createdDate.getTime() + (Math.random() * 7 * 86400000)),
+        paymentAmount: isWon ? Math.floor(Math.random() * 50000) + 10000 : 0,
+        isWon: isWon,
+        wonDate: isWon ? new Date(createdDate.getTime() + (Math.random() * 3 * 86400000)) : undefined,
+        isLost: isLost,
+        lostDate: isLost ? new Date(createdDate.getTime() + (Math.random() * 3 * 86400000)) : undefined,
+        lostReason: isLost ? "Budget issues" : undefined,
         followUps: [{
             date: createdDate,
             time: "11:30",
@@ -278,6 +288,7 @@ async function seedData() {
             leadLabel: [leadLabels[0]._id], // High Priority
             assignedTo: user1._id,
             nextFollowupDate: date,
+            nextFollowupTime: date >= today ? "23:59" : "10:00",
             followUps: [{
                 date: date,
                 time: "14:00",

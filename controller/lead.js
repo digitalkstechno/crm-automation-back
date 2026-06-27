@@ -519,11 +519,19 @@ exports.fetchLeadsForKanban = async (req, res) => {
         const leadMatch = { ...match, leadStatus: status._id };
         const totalCount = await LEAD.countDocuments(leadMatch);
 
+        const kanbanLeads = await LEAD.find(leadMatch)
+          .populate("leadStatus")
+          .populate("leadSource")
+          .populate("assignedTo", "fullName email avatar")
+          .populate("leadLabel", "name color")
+          .sort({ createdAt: -1 })
+          .limit(10);
+
         return {
           statusId: status._id,
           statusName: status.name,
           totalCount,
-          leads: [], // empty array, frontend lazy-loads this via /kanban-status
+          leads: kanbanLeads,
         };
       })
     );
@@ -545,6 +553,7 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
     const { statusId, search, source, staff, date, page = 1, limit = 10 } = req.query;
     const match = { leadStatus: new mongoose.Types.ObjectId(statusId) };
     const myOnly = req.query.my === 'true';
+    console.log(`fetchKanbanLeadsByStatus called for statusId: ${statusId}, match:`, match);
 
     if ((req.leadScope === "own" || myOnly) && req.user && req.user._id) {
       const myTeams = req.user.teams || [];

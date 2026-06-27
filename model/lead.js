@@ -100,6 +100,23 @@ const LeadSchema = new Schema(
       type: Number,
       default: 0,
     },
+    isWon: {
+      type: Boolean,
+      default: false,
+    },
+    wonDate: {
+      type: Date,
+    },
+    isLost: {
+      type: Boolean,
+      default: false,
+    },
+    lostDate: {
+      type: Date,
+    },
+    lostReason: {
+      type: String,
+    },
     products: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
