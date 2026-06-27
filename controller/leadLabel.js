@@ -83,7 +83,7 @@ exports.fetchLeadLabelById = async (req, res) => {
     const labelData = await LEADLABEL.findById(labelId);
 
     if (!labelData) {
-      return res.status(404).json({
+      return res.status(400).json({
         status: "Fail",
         message: "Lead label not found",
       });
@@ -111,7 +111,7 @@ exports.updateLeadLabel = async (req, res) => {
     // Check if label exists
     const existingLabel = await LEADLABEL.findById(labelId);
     if (!existingLabel) {
-      return res.status(404).json({
+      return res.status(400).json({
         status: "Fail",
         message: "Lead label not found",
       });
@@ -167,7 +167,7 @@ exports.deleteLeadLabel = async (req, res) => {
     // Check if label exists
     const existingLabel = await LEADLABEL.findById(labelId);
     if (!existingLabel) {
-      return res.status(404).json({
+      return res.status(400).json({
         status: "Fail",
         message: "Lead label not found",
       });
@@ -227,4 +227,35 @@ exports.updateLabelOrder = async (req, res) => {
       message: error.message,
     });
   }
+};
+
+exports.bulkReorder = async (req, res) => {
+    try {
+        const { items } = req.body; // [{ _id, order }]
+        if (!Array.isArray(items)) {
+            return res.status(400).json({ status: "Fail", message: "Invalid payload format" });
+        }
+        
+        // Step 1: Assign temporary negative orders to avoid unique constraint violations
+        const bulkOps1 = items.map(item => ({
+            updateOne: {
+                filter: { _id: item._id },
+                update: { $set: { order: -item.order - 1000000 } }
+            }
+        }));
+        await LEADLABEL.bulkWrite(bulkOps1);
+
+        // Step 2: Assign final actual orders
+        const bulkOps2 = items.map(item => ({
+            updateOne: {
+                filter: { _id: item._id },
+                update: { $set: { order: item.order } }
+            }
+        }));
+        await LEADLABEL.bulkWrite(bulkOps2);
+
+        res.status(200).json({ status: "Success", message: "Reordered successfully" });
+    } catch (error) {
+        res.status(400).json({ status: "Fail", message: error.message });
+    }
 };

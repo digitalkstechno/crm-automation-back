@@ -3,13 +3,17 @@ const LEADSTATUS = require("../model/leadStatus");
 exports.createLeadStatus = async (req, res) => {
   try {
     let leadStatusCreate = req.body;
+        if (leadStatusCreate.order === undefined || leadStatusCreate.order === null || leadStatusCreate.order === "") {
+            const maxItem = await LEADSTATUS.findOne().sort({ order: -1 });
+            leadStatusCreate.order = maxItem && maxItem.order != null ? maxItem.order + 1 : 1;
+        }
     let newLeadStatus = await LEADSTATUS.create(leadStatusCreate);
     res.status(201).json({
       status: "Success",
       data: newLeadStatus,
     });
   } catch (error) {
-    res.status(404).json({
+    res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -81,7 +85,7 @@ exports.fetchLeadStatusById = async (req, res) => {
       data: StatusData,
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -104,7 +108,7 @@ exports.LeadStatusUpdate = async (req, res) => {
       data: updatedStatus,
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -126,7 +130,7 @@ exports.LeadStatusDelete = async (req, res) => {
       message: "Lead Status deleted successfully",
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -150,4 +154,35 @@ exports.setupDefaultLeadStatuses = async () => {
   } catch (error) {
     console.error("Error setting up default lead statuses:", error);
   }
+};
+
+exports.bulkReorder = async (req, res) => {
+    try {
+        const { items } = req.body; // [{ _id, order }]
+        if (!Array.isArray(items)) {
+            return res.status(400).json({ status: "Fail", message: "Invalid payload format" });
+        }
+        
+        // Step 1: Assign temporary negative orders to avoid unique constraint violations
+        const bulkOps1 = items.map(item => ({
+            updateOne: {
+                filter: { _id: item._id },
+                update: { $set: { order: -item.order - 1000000 } }
+            }
+        }));
+        await LEADSTATUS.bulkWrite(bulkOps1);
+
+        // Step 2: Assign final actual orders
+        const bulkOps2 = items.map(item => ({
+            updateOne: {
+                filter: { _id: item._id },
+                update: { $set: { order: item.order } }
+            }
+        }));
+        await LEADSTATUS.bulkWrite(bulkOps2);
+
+        res.status(200).json({ status: "Success", message: "Reordered successfully" });
+    } catch (error) {
+        res.status(400).json({ status: "Fail", message: error.message });
+    }
 };

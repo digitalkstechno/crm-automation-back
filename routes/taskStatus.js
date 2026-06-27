@@ -6,6 +6,7 @@ let {
     fetchTaskStatusById,
     TaskStatusUpdate,
     TaskStatusDelete,
+  bulkReorder,
 } = require("../controller/taskStatus");
 let authMiddleware = require("../middleware/auth");
 const { authorize } = require("../middleware/permissions");
@@ -22,8 +23,10 @@ router.get(
     // authorize("setup", "readAll"),
     fetchAllTaskStatus
 );
+router.put("/reorder", authMiddleware, bulkReorder);
+
 router.get(
-    "/:id",
+  "/:id",
     authMiddleware,
     // authorize("setup", "readAll"),
     fetchTaskStatusById
@@ -42,3 +45,4 @@ router.delete(
 );
 
 module.exports = router;
+

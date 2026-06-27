@@ -134,7 +134,7 @@ exports.fetchStaffById = async (req, res) => {
       data: staffData,
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -229,7 +229,7 @@ exports.staffDelete =  async (req, res) => {
       message: "Staff deleted successfully",
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });

@@ -6,6 +6,7 @@ let {
   fetchLeadSourcesById,
   LeadSourceUpdate,
   LeadSourcesDelete,
+  bulkReorder,
 } = require("../controller/leadSources");
 let authMiddleware = require("../middleware/auth");
 const { authorize } = require("../middleware/permissions");
@@ -22,6 +23,8 @@ router.get(
   // authorize("setup", "readAll"),
   fetchAllLeadSources,
 );
+router.put("/reorder", authMiddleware, bulkReorder);
+
 router.get(
   "/:id",
   authMiddleware,
@@ -42,3 +45,4 @@ router.delete(
 );
 
 module.exports = router;
+

@@ -7,9 +7,12 @@ let TaskStatusSchema = new Schema(
         name: {
             type: String,
             required: true,
+            unique: true,
         },
         order: {
             type: Number,
+            unique: true,
+            sparse: true,
         },
         color: {
             type: String,

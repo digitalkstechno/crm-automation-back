@@ -9,7 +9,7 @@ exports.createRole = async (req, res, next) => {
       data: newRole,
     });
   } catch (error) {
-    res.status(404).json({
+    res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -66,7 +66,7 @@ exports.fetchRoleById = async (req, res) => {
       data: roleData,
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -89,7 +89,8 @@ exports.roleUpdate = async (req, res) => {
       data: updatedRole,
     });
   } catch (error) {
-    return res.status(404).json({
+    let statusCode = error.message === "Role not found" ? 404 : 400;
+    return res.status(statusCode).json({
       status: "Fail",
       message: error.message,
     });
@@ -111,7 +112,7 @@ exports.roleDelete = async (req, res) => {
       message: "Role deleted successfully",
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });

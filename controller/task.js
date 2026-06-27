@@ -167,7 +167,7 @@ exports.getTaskById = async (req, res) => {
     if (!task) throw new Error("Task not found");
     return res.status(200).json({ status: "Success", data: task });
   } catch (error) {
-    return res.status(404).json({ status: "Fail", message: error.message });
+    return res.status(400).json({ status: "Fail", message: error.message });
   }
 };
 
@@ -455,7 +455,7 @@ exports.deleteTask = async (req, res) => {
     await Task.findByIdAndDelete(req.params.id);
     return res.status(200).json({ status: "Success", message: "Task deleted successfully" });
   } catch (error) {
-    return res.status(404).json({ status: "Fail", message: error.message });
+    return res.status(400).json({ status: "Fail", message: error.message });
   }
 };
 
@@ -497,7 +497,7 @@ exports.deleteAttachment = async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-      return res.status(404).json({ status: "Fail", message: "Task not found" });
+      return res.status(400).json({ status: "Fail", message: "Task not found" });
     }
 
     // Find the attachment
@@ -506,7 +506,7 @@ exports.deleteAttachment = async (req, res) => {
     );
 
     if (attachmentIndex === -1) {
-      return res.status(404).json({ status: "Fail", message: "Attachment not found" });
+      return res.status(400).json({ status: "Fail", message: "Attachment not found" });
     }
 
     const attachment = task.attachments[attachmentIndex];

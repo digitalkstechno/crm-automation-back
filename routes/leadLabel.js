@@ -7,6 +7,7 @@ const {
   updateLeadLabel,
   deleteLeadLabel,
   updateLabelOrder,
+  bulkReorder,
 } = require("../controller/leadLabel");
 const authMiddleware = require("../middleware/auth");
 const { authorize } = require("../middleware/permissions");
@@ -28,6 +29,8 @@ router.get(
 );
 
 // Get single lead label by ID
+router.put("/reorder", authMiddleware, bulkReorder);
+
 router.get(
   "/:id",
   authMiddleware,
@@ -60,3 +63,4 @@ router.post(
 );
 
 module.exports = router;
+

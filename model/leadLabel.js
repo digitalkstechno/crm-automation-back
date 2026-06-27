@@ -8,6 +8,7 @@ const LeadLabelSchema = new Schema(
       type: String,
       required: [true, "Label name is required"],
       trim: true,
+      unique: true,
     },
     color: {
       type: String,

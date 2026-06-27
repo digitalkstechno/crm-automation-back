@@ -3,13 +3,17 @@ const LEADSOURCES = require("../model/leadSources");
 exports.createLeadSources = async (req, res) => {
   try {
     let leadSourceCreate = req.body;
+        if (leadSourceCreate.order === undefined || leadSourceCreate.order === null || leadSourceCreate.order === "") {
+            const maxItem = await LEADSOURCES.findOne().sort({ order: -1 });
+            leadSourceCreate.order = maxItem && maxItem.order != null ? maxItem.order + 1 : 1;
+        }
     let newLeadSource = await LEADSOURCES.create(leadSourceCreate);
     res.status(201).json({
       status: "Success",
       data: newLeadSource,
     });
   } catch (error) {
-    res.status(404).json({
+    res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -37,7 +41,7 @@ exports.fetchAllLeadSources = async (req, res) => {
       const SourcesData = await LEADSOURCES.find(query)
         .skip(skip)
         .limit(limit)
-        .sort({ createdAt: -1 });
+        .sort({ order: 1, createdAt: -1 });
 
       return res.status(200).json({
         status: "Success",
@@ -53,7 +57,7 @@ exports.fetchAllLeadSources = async (req, res) => {
     } else {
       // 👉 no pagination → all data
       const SourcesData = await LEADSOURCES.find(query)
-        .sort({ createdAt: -1 });
+        .sort({ order: 1, createdAt: -1 });
 
       return res.status(200).json({
         status: "Success",
@@ -82,7 +86,7 @@ exports.fetchLeadSourcesById = async (req, res) => {
       data: sourceData,
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -105,7 +109,7 @@ exports.LeadSourceUpdate = async (req, res) => {
       data: updatedSources,
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -127,9 +131,41 @@ exports.LeadSourcesDelete = async (req, res) => {
       message: "Lead Source deleted successfully",
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });
   }
+};
+
+
+exports.bulkReorder = async (req, res) => {
+    try {
+        const { items } = req.body; // [{ _id, order }]
+        if (!Array.isArray(items)) {
+            return res.status(400).json({ status: "Fail", message: "Invalid payload format" });
+        }
+        
+        // Step 1: Assign temporary negative orders to avoid unique constraint violations
+        const bulkOps1 = items.map(item => ({
+            updateOne: {
+                filter: { _id: item._id },
+                update: { $set: { order: -item.order - 1000000 } }
+            }
+        }));
+        await LEADSOURCES.bulkWrite(bulkOps1);
+
+        // Step 2: Assign final actual orders
+        const bulkOps2 = items.map(item => ({
+            updateOne: {
+                filter: { _id: item._id },
+                update: { $set: { order: item.order } }
+            }
+        }));
+        await LEADSOURCES.bulkWrite(bulkOps2);
+
+        res.status(200).json({ status: "Success", message: "Reordered successfully" });
+    } catch (error) {
+        res.status(400).json({ status: "Fail", message: error.message });
+    }
 };

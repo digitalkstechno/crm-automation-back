@@ -262,7 +262,7 @@ exports.fetchLeadById = async (req, res) => {
       data: leadData,
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -390,7 +390,7 @@ exports.leadUpdate = async (req, res) => {
         deleteUploadedFile("images/LeadAttachment", el.filename),
       );
     }
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -424,7 +424,7 @@ exports.leadDelete = async (req, res) => {
       message: "Lead deleted successfully",
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });
@@ -1419,7 +1419,7 @@ exports.deleteAttachment = async (req, res) => {
 
     const lead = await LEAD.findById(leadId);
     if (!lead) {
-      return res.status(404).json({ status: "Fail", message: "Lead not found" });
+      return res.status(400).json({ status: "Fail", message: "Lead not found" });
     }
 
     // Find the attachment
@@ -1428,7 +1428,7 @@ exports.deleteAttachment = async (req, res) => {
     );
 
     if (!attachment) {
-      return res.status(404).json({ status: "Fail", message: "Attachment not found" });
+      return res.status(400).json({ status: "Fail", message: "Attachment not found" });
     }
 
     // Delete file from filesystem

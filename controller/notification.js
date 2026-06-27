@@ -37,7 +37,7 @@ exports.markAsRead = async (req, res) => {
       data: notification,
     });
   } catch (error) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "Fail",
       message: error.message,
     });

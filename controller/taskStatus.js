@@ -3,13 +3,17 @@ const TASKSTATUS = require("../model/taskStatus");
 exports.createTaskStatus = async (req, res) => {
     try {
         let taskStatusCreate = req.body;
+        if (taskStatusCreate.order === undefined || taskStatusCreate.order === null || taskStatusCreate.order === "") {
+            const maxItem = await TASKSTATUS.findOne().sort({ order: -1 });
+            taskStatusCreate.order = maxItem && maxItem.order != null ? maxItem.order + 1 : 1;
+        }
         let newTaskStatus = await TASKSTATUS.create(taskStatusCreate);
         res.status(201).json({
             status: "Success",
             data: newTaskStatus,
         });
     } catch (error) {
-        res.status(404).json({
+        res.status(400).json({
             status: "Fail",
             message: error.message,
         });
@@ -81,7 +85,7 @@ exports.fetchTaskStatusById = async (req, res) => {
             data: StatusData,
         });
     } catch (error) {
-        return res.status(404).json({
+        return res.status(400).json({
             status: "Fail",
             message: error.message,
         });
@@ -104,7 +108,7 @@ exports.TaskStatusUpdate = async (req, res) => {
             data: updatedStatus,
         });
     } catch (error) {
-        return res.status(404).json({
+        return res.status(400).json({
             status: "Fail",
             message: error.message,
         });
@@ -126,7 +130,7 @@ exports.TaskStatusDelete = async (req, res) => {
             message: "Task Status deleted successfully",
         });
     } catch (error) {
-        return res.status(404).json({
+        return res.status(400).json({
             status: "Fail",
             message: error.message,
         });
@@ -150,5 +154,37 @@ exports.setupDefaultTaskStatuses = async () => {
         }
     } catch (error) {
         console.error("Error setting up default task statuses:", error);
+    }
+};
+
+
+exports.bulkReorder = async (req, res) => {
+    try {
+        const { items } = req.body; // [{ _id, order }]
+        if (!Array.isArray(items)) {
+            return res.status(400).json({ status: "Fail", message: "Invalid payload format" });
+        }
+        
+        // Step 1: Assign temporary negative orders to avoid unique constraint violations
+        const bulkOps1 = items.map(item => ({
+            updateOne: {
+                filter: { _id: item._id },
+                update: { $set: { order: -item.order - 1000000 } }
+            }
+        }));
+        await TASKSTATUS.bulkWrite(bulkOps1);
+
+        // Step 2: Assign final actual orders
+        const bulkOps2 = items.map(item => ({
+            updateOne: {
+                filter: { _id: item._id },
+                update: { $set: { order: item.order } }
+            }
+        }));
+        await TASKSTATUS.bulkWrite(bulkOps2);
+
+        res.status(200).json({ status: "Success", message: "Reordered successfully" });
+    } catch (error) {
+        res.status(400).json({ status: "Fail", message: error.message });
     }
 };
