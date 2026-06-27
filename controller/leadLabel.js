@@ -14,10 +14,16 @@ exports.createLeadLabel = async (req, res) => {
       });
     }
 
+    let finalOrder = order;
+    if (finalOrder === undefined || finalOrder === null || finalOrder === "") {
+      const maxItem = await LEADLABEL.findOne().sort({ order: -1 });
+      finalOrder = maxItem && maxItem.order != null ? maxItem.order + 1 : 1;
+    }
+
     const newLeadLabel = await LEADLABEL.create({
       name,
       color,
-      order: order || null
+      order: finalOrder
     });
 
     res.status(201).json({
