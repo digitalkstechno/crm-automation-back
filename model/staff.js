@@ -16,6 +16,10 @@ let StaffSchema = new Schema(
       required: true,
       unique: true,
     },
+    countryCode: {
+      type: String,
+      default: "+91",
+    },
     phone: {
       type: String,
       required: true,

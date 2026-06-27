@@ -8,6 +8,11 @@ const LeadSchema = new Schema(
       type: String,
     },
 
+    countryCode: {
+      type: String,
+      default: "+91",
+    },
+
     contact: {
       type: String,
     },

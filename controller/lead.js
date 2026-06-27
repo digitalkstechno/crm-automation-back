@@ -10,6 +10,7 @@ const LeadLabel = require("../model/leadLabel");
 const Notification = require("../model/notification");
 const ExcelJS = require("exceljs");
 const fs = require("fs");
+const COUNTRY_CODES = require("../utils/countryCodes");
 
 const sanitizeObjectId = (id) => {
   if (id === "" || id === "null" || id === "undefined" || id === null) return undefined;
@@ -96,6 +97,8 @@ exports.fetchAllLeads = async (req, res) => {
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
+        { countryCode: { $regex: search, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
         { companyName: { $regex: search, $options: "i" } },
         { priority: { $regex: search, $options: "i" } },
       ];
@@ -448,6 +451,8 @@ exports.fetchLeadsForKanban = async (req, res) => {
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
+        { countryCode: { $regex: search, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
         { companyName: { $regex: search, $options: "i" } },
         { priority: { $regex: search, $options: "i" } },
       ];
@@ -553,6 +558,8 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
+        { countryCode: { $regex: search, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
         { companyName: { $regex: search, $options: "i" } },
       ];
     }
@@ -667,6 +674,8 @@ exports.getKanbanCounts = async (req, res) => {
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
+        { countryCode: { $regex: search, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
         { companyName: { $regex: search, $options: "i" } },
         { priority: { $regex: search, $options: "i" } },
       ];
@@ -767,6 +776,8 @@ exports.getLeadCountSummary = async (req, res) => {
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
+        { countryCode: { $regex: search, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
         { companyName: { $regex: search, $options: "i" } },
         { priority: { $regex: search, $options: "i" } },
       ];
@@ -1221,6 +1232,8 @@ exports.getWonLeads = async (req, res) => {
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
+        { countryCode: { $regex: search, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
         { companyName: { $regex: search, $options: "i" } },
         { priority: { $regex: search, $options: "i" } },
       ];
@@ -1334,7 +1347,9 @@ exports.getLostLeads = async (req, res) => {
       query.$or = [
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
+        { contact: { $regex: search, $options: "i" } },
+        { countryCode: { $regex: search, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
         { companyName: { $regex: search, $options: "i" } },
         { priority: { $regex: search, $options: "i" } },
       ];
@@ -1440,6 +1455,8 @@ exports.exportLeadsToExcel = async (req, res) => {
         { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { contact: { $regex: search, $options: "i" } },
+        { countryCode: { $regex: search, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
         { companyName: { $regex: search, $options: "i" } },
       ];
     }
@@ -1520,6 +1537,7 @@ exports.exportLeadsToExcel = async (req, res) => {
       { header: "S.No", key: "sno", width: 7 },
       { header: "Full Name", key: "fullName", width: 22 },
       { header: "Email", key: "email", width: 28 },
+      { header: "Country Code", key: "countryCode", width: 15 },
       { header: "Phone", key: "contact", width: 16 },
       { header: "Company", key: "company", width: 22 },
       { header: "Lead Status", key: "status", width: 18 },
@@ -1551,6 +1569,7 @@ exports.exportLeadsToExcel = async (req, res) => {
         sno: idx + 1,
         fullName: lead.fullName || "",
         email: lead.email || "",
+        countryCode: lead.countryCode || "+91",
         contact: lead.contact || "",
         company: lead.companyName || "",
         status: lead.leadStatus?.name || "",
@@ -1637,6 +1656,9 @@ exports.downloadImportTemplate = async (req, res) => {
     const labelSheet = workbook.addWorksheet("__labels", { state: "veryHidden" });
     labelSheet.addRows(labels.map((l) => [l.name]));
 
+    const countryCodeSheet = workbook.addWorksheet("__countryCodes", { state: "veryHidden" });
+    countryCodeSheet.addRows(COUNTRY_CODES.map((c) => [c.code]));
+
     // ── Main data sheet ───────────────────────────────────────────────────
     const sheet = workbook.addWorksheet("Leads Import", {
       pageSetup: { fitToPage: true, orientation: "landscape" },
@@ -1645,6 +1667,7 @@ exports.downloadImportTemplate = async (req, res) => {
     // Column definitions – only core importable fields
     const COLUMNS = [
       { header: "Full Name *", key: "fullName", width: 24 },
+      { header: "Country Code *", key: "countryCode", width: 15 },
       { header: "Contact *", key: "contact", width: 18 },
       { header: "Email", key: "email", width: 28 },
       { header: "Company Name *", key: "companyName", width: 24 },
@@ -1670,6 +1693,7 @@ exports.downloadImportTemplate = async (req, res) => {
     // Add a sample row
     const sampleRow = sheet.addRow({
       fullName: "John Doe",
+      countryCode: "+91",
       contact: "9876543210",
       email: "john@example.com",
       companyName: "Acme Corp",
@@ -1686,13 +1710,22 @@ exports.downloadImportTemplate = async (req, res) => {
     sampleRow.height = 22;
 
     // ── Data validation (dropdowns) for rows 2-1001 ───────────────────────
-    const COL = { leadStatus: 6, leadSource: 7, priority: 8 }; // 1-based col index
+    const COL = { countryCode: 2, leadStatus: 7, leadSource: 8, priority: 9 }; // 1-based col index
 
     const statusFormula = `__statuses!$A$1:$A$${statuses.length || 1}`;
     const sourceFormula = `__sources!$A$1:$A$${sources.length || 1}`;
     const priorityFormula = `__priorities!$A$1:$A$3`;
+    const countryCodeFormula = `__countryCodes!$A$1:$A$${COUNTRY_CODES.length}`;
 
     for (let row = 2; row <= 1001; row++) {
+      sheet.getCell(row, COL.countryCode).dataValidation = {
+        type: "list",
+        allowBlank: false,
+        formulae: [countryCodeFormula],
+        showErrorMessage: true,
+        errorTitle: "Invalid Country Code",
+        error: "Please select a valid Country Code from the dropdown.",
+      };
       sheet.getCell(row, COL.leadStatus).dataValidation = {
         type: "list",
         allowBlank: false,
@@ -1784,14 +1817,15 @@ exports.bulkImportLeads = async (req, res) => {
       };
 
       const fullName = getCellValue(1);
-      const contact = getCellValue(2);
-      const email = getCellValue(3);
-      const companyName = getCellValue(4);
-      const address = getCellValue(5);
-      const statusName = getCellValue(6);
-      const sourceName = getCellValue(7);
-      const priority = getCellValue(8).toLowerCase() || "medium";
-      const note = getCellValue(9);
+      const countryCode = getCellValue(2);
+      const contact = getCellValue(3);
+      const email = getCellValue(4);
+      const companyName = getCellValue(5);
+      const address = getCellValue(6);
+      const statusName = getCellValue(7);
+      const sourceName = getCellValue(8);
+      const priority = getCellValue(9).toLowerCase() || "medium";
+      const note = getCellValue(10);
 
       // Skip completely empty rows
       if (!fullName && !contact && !companyName && !statusName && !sourceName) return;
@@ -1799,6 +1833,7 @@ exports.bulkImportLeads = async (req, res) => {
       const errors = [];
 
       if (!fullName) errors.push("Full Name is required");
+      if (!countryCode) errors.push("Country Code is required");
       if (!contact) errors.push("Contact is required");
       if (!companyName) errors.push("Company Name is required");
 
@@ -1819,9 +1854,9 @@ exports.bulkImportLeads = async (req, res) => {
       }
 
       if (errors.length > 0) {
-        failedRows.push({ rowNumber, fullName, contact, email, companyName, address, statusName, sourceName, priority, note, errors: errors.join(" | ") });
+        failedRows.push({ rowNumber, fullName, countryCode, contact, email, companyName, address, statusName, sourceName, priority, note, errors: errors.join(" | ") });
       } else {
-        successRows.push({ fullName, contact, email: email || undefined, companyName, address: address || undefined, leadStatus: statusId, leadSource: sourceId, priority: priority || "medium", note: note || undefined, assignedTo });
+        successRows.push({ fullName, countryCode, contact, email: email || undefined, companyName, address: address || undefined, leadStatus: statusId, leadSource: sourceId, priority: priority || "medium", note: note || undefined, assignedTo });
       }
     });
 
@@ -1845,6 +1880,7 @@ exports.bulkImportLeads = async (req, res) => {
       ...insertErrors.map((r) => ({
         rowNumber: "DB",
         fullName: r.fullName,
+        countryCode: r.countryCode,
         contact: r.contact,
         email: r.email || "",
         companyName: r.companyName,
@@ -1868,6 +1904,7 @@ exports.bulkImportLeads = async (req, res) => {
       failSheet.columns = [
         { header: "Row #", key: "rowNumber", width: 8 },
         { header: "Full Name", key: "fullName", width: 22 },
+        { header: "Country Code", key: "countryCode", width: 15 },
         { header: "Contact", key: "contact", width: 16 },
         { header: "Email", key: "email", width: 26 },
         { header: "Company Name", key: "companyName", width: 22 },
@@ -1892,6 +1929,7 @@ exports.bulkImportLeads = async (req, res) => {
         const r = failSheet.addRow({
           rowNumber: f.rowNumber,
           fullName: f.fullName,
+          countryCode: f.countryCode,
           contact: f.contact,
           email: f.email,
           companyName: f.companyName,

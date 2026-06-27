@@ -3,6 +3,8 @@ const connectDB = require("./config/db");
 dotenv.config();
 require('node:dns').setServers(['8.8.8.8','1.1.1.1'])
 connectDB();
+const { initializeCronJobs } = require("./utils/cronJobs");
+initializeCronJobs();
 var createError = require("http-errors");
 var express = require("express");
 var path = require("path");

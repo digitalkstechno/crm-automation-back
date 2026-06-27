@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 
 exports.createStaff = async (req, res) => {
   try {
-    const { fullName, email, phone, role, password, status } = req.body;
+    const { fullName, email, countryCode, phone, role, password, status } = req.body;
 
     const parseIds = (val) => {
       if (!val) return [];
@@ -18,6 +18,7 @@ exports.createStaff = async (req, res) => {
       profileImage: req.file ? req.file.filename : null,
       fullName,
       email,
+      countryCode: countryCode || "+91",
       phone,
       role,
       status: status || "active",
@@ -37,9 +38,13 @@ exports.createStaff = async (req, res) => {
     if (req.file) {
       deleteUploadedFile("images/StaffProfileImages", req.file.filename);
     }
+    let errorMessage = error.message;
+    if (error.code === 11000) {
+      errorMessage = "Email already exists";
+    }
     return res.status(400).json({
       status: "Fail",
-      message: error.message,
+      message: errorMessage,
     });
   }
 };
@@ -195,9 +200,13 @@ exports.staffUpdate = async (req, res) => {
     if (req.file) {
       deleteUploadedFile("images/StaffProfileImages", req.file.filename);
     }
-    return res.status(404).json({
+    let errorMessage = error.message;
+    if (error.code === 11000) {
+      errorMessage = "Email already exists";
+    }
+    return res.status(400).json({
       status: "Fail",
-      message: error.message,
+      message: errorMessage,
     });
   }
 };
