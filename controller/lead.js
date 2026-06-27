@@ -93,14 +93,15 @@ exports.fetchAllLeads = async (req, res) => {
        SEARCH (TEXT)
     ====================== */
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { contact: { $regex: search, $options: "i" } },
-        { countryCode: { $regex: search, $options: "i" } },
-        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
-        { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
+        { fullName: { $regex: escapedSearch, $options: "i" } },
+        { email: { $regex: escapedSearch, $options: "i" } },
+        { contact: { $regex: escapedSearch, $options: "i" } },
+        { countryCode: { $regex: escapedSearch, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: escapedSearch, options: "i" } } },
+        { companyName: { $regex: escapedSearch, $options: "i" } },
+        { priority: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -447,14 +448,15 @@ exports.fetchLeadsForKanban = async (req, res) => {
 
     // 🔥 SEARCH FILTER
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       match.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { contact: { $regex: search, $options: "i" } },
-        { countryCode: { $regex: search, $options: "i" } },
-        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
-        { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
+        { fullName: { $regex: escapedSearch, $options: "i" } },
+        { email: { $regex: escapedSearch, $options: "i" } },
+        { contact: { $regex: escapedSearch, $options: "i" } },
+        { countryCode: { $regex: escapedSearch, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: escapedSearch, options: "i" } } },
+        { companyName: { $regex: escapedSearch, $options: "i" } },
+        { priority: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -554,13 +556,15 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
     }
 
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       match.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { contact: { $regex: search, $options: "i" } },
-        { countryCode: { $regex: search, $options: "i" } },
-        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
-        { companyName: { $regex: search, $options: "i" } },
+        { fullName: { $regex: escapedSearch, $options: "i" } },
+        { email: { $regex: escapedSearch, $options: "i" } },
+        { contact: { $regex: escapedSearch, $options: "i" } },
+        { countryCode: { $regex: escapedSearch, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: escapedSearch, options: "i" } } },
+        { companyName: { $regex: escapedSearch, $options: "i" } },
+        { priority: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -670,14 +674,15 @@ exports.getKanbanCounts = async (req, res) => {
 
     // 🔥 SEARCH FILTER
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       match.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { contact: { $regex: search, $options: "i" } },
-        { countryCode: { $regex: search, $options: "i" } },
-        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
-        { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
+        { fullName: { $regex: escapedSearch, $options: "i" } },
+        { email: { $regex: escapedSearch, $options: "i" } },
+        { contact: { $regex: escapedSearch, $options: "i" } },
+        { countryCode: { $regex: escapedSearch, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: escapedSearch, options: "i" } } },
+        { companyName: { $regex: escapedSearch, $options: "i" } },
+        { priority: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -772,14 +777,15 @@ exports.getLeadCountSummary = async (req, res) => {
 
     // 🔥 SEARCH FILTER
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       baseMatch.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { contact: { $regex: search, $options: "i" } },
-        { countryCode: { $regex: search, $options: "i" } },
-        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
-        { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
+        { fullName: { $regex: escapedSearch, $options: "i" } },
+        { email: { $regex: escapedSearch, $options: "i" } },
+        { contact: { $regex: escapedSearch, $options: "i" } },
+        { countryCode: { $regex: escapedSearch, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: escapedSearch, options: "i" } } },
+        { companyName: { $regex: escapedSearch, $options: "i" } },
+        { priority: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -1228,14 +1234,15 @@ exports.getWonLeads = async (req, res) => {
 
     // 🔥 SEARCH FILTER
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       match.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { contact: { $regex: search, $options: "i" } },
-        { countryCode: { $regex: search, $options: "i" } },
-        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
-        { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
+        { fullName: { $regex: escapedSearch, $options: "i" } },
+        { email: { $regex: escapedSearch, $options: "i" } },
+        { contact: { $regex: escapedSearch, $options: "i" } },
+        { countryCode: { $regex: escapedSearch, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: escapedSearch, options: "i" } } },
+        { companyName: { $regex: escapedSearch, $options: "i" } },
+        { priority: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -1344,14 +1351,15 @@ exports.getLostLeads = async (req, res) => {
 
     // 🔥 SEARCH FILTER
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { contact: { $regex: search, $options: "i" } },
-        { countryCode: { $regex: search, $options: "i" } },
-        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
-        { companyName: { $regex: search, $options: "i" } },
-        { priority: { $regex: search, $options: "i" } },
+        { fullName: { $regex: escapedSearch, $options: "i" } },
+        { email: { $regex: escapedSearch, $options: "i" } },
+        { contact: { $regex: escapedSearch, $options: "i" } },
+        { countryCode: { $regex: escapedSearch, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: escapedSearch, options: "i" } } },
+        { companyName: { $regex: escapedSearch, $options: "i" } },
+        { priority: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -1451,13 +1459,15 @@ exports.exportLeadsToExcel = async (req, res) => {
 
     // SEARCH
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { contact: { $regex: search, $options: "i" } },
-        { countryCode: { $regex: search, $options: "i" } },
-        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: search.replace(/\+/g, "\\+"), options: "i" } } },
-        { companyName: { $regex: search, $options: "i" } },
+        { fullName: { $regex: escapedSearch, $options: "i" } },
+        { email: { $regex: escapedSearch, $options: "i" } },
+        { contact: { $regex: escapedSearch, $options: "i" } },
+        { countryCode: { $regex: escapedSearch, $options: "i" } },
+        { $expr: { $regexMatch: { input: { $concat: ["$countryCode", "$contact"] }, regex: escapedSearch, options: "i" } } },
+        { companyName: { $regex: escapedSearch, $options: "i" } },
+        { priority: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 

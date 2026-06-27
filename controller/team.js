@@ -21,7 +21,7 @@ exports.fetchAllTeams = async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
     const skip = (page - 1) * limit;
 
-    const query = { name: { $regex: search, $options: "i" } };
+    const query = { name: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" } };
     if (req.query.organization) {
       query.organization = req.query.organization;
     }

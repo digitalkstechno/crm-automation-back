@@ -16,7 +16,7 @@ exports.fetchAllOrganizations = async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
     const skip = (page - 1) * limit;
 
-    const query = { name: { $regex: search, $options: "i" } };
+    const query = { name: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" } };
     const total = await Organization.countDocuments(query);
     const data = await Organization.find(query).skip(skip).limit(limit).sort({ createdAt: -1 });
 

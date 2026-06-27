@@ -25,7 +25,7 @@ exports.fetchAllRoles = async (req, res) => {
     const search = req.query.search || "";
 
     const query = {
-      $or: [{ roleName: { $regex: search, $options: "i" } }],
+      $or: [{ roleName: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" } }],
     };
 
     const totalRoles = await ROLE.countDocuments(query);

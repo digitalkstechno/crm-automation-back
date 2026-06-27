@@ -18,7 +18,7 @@ exports.fetchKanbanTasksByStatus = async (req, res) => {
 
     const query = { taskStatus: statusId };
     if (search) {
-      query.subject = { $regex: search, $options: "i" };
+      query.subject = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" };
     }
     if (myTasksOnly) {
       query.assignedUsers = req.user._id;
@@ -127,7 +127,7 @@ exports.getAllTasks = async (req, res) => {
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
 
-    const query = search ? { subject: { $regex: search, $options: "i" } } : {};
+    const query = search ? { subject: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" } } : {};
     
     // Status filter
     if (req.query.status) {
@@ -246,7 +246,7 @@ exports.getMyTasks = async (req, res) => {
     const search = req.query.search || "";
 
     const query = { assignedUsers: req.user._id };
-    if (search) query.subject = { $regex: search, $options: "i" };
+    if (search) query.subject = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" };
     
     // Status filter
     if (req.query.status) {
@@ -384,7 +384,7 @@ exports.getTasksForKanban = async (req, res) => {
     // Build base query
     const baseQuery = {};
     if (search) {
-      baseQuery.subject = { $regex: search, $options: "i" };
+      baseQuery.subject = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" };
     }
     if (myTasksOnly) {
       baseQuery.assignedUsers = req.user._id;

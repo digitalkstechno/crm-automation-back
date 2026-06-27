@@ -21,7 +21,7 @@ exports.fetchAllTaskStatus = async (req, res) => {
         const search = req.query.search || "";
 
         const query = {
-            $or: [{ name: { $regex: search, $options: "i" } }],
+            $or: [{ name: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" } }],
         };
 
         // check if pagination params exist

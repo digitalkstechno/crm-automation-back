@@ -45,8 +45,8 @@ exports.fetchAllLeadLabels = async (req, res) => {
     const query = search
       ? {
           $or: [
-            { name: { $regex: search, $options: "i" } },
-            { color: { $regex: search, $options: "i" } }
+            { name: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" } },
+            { color: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" } }
           ],
         }
       : {};
