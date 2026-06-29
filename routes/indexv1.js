@@ -18,5 +18,6 @@ router.use("/task", require("./task"));
 router.use("/notification", require("./notification"));
 router.use("/settings", require("./setting"));
 router.use("/product", require("./product"));
+router.use("/public-lead", require("./publicLeads"));
 
 module.exports = router;
