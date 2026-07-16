@@ -215,6 +215,7 @@ exports.fetchAllLeads = async (req, res) => {
     } else {
       sortObj.updatedAt = 1;
     }
+    sortObj._id = 1;
 
     const LeadData = await LEAD.find(query)
       .skip(skip)
@@ -550,6 +551,7 @@ exports.fetchLeadsForKanban = async (req, res) => {
     } else {
       sortObj.updatedAt = -1;
     }
+    sortObj._id = 1;
 
     const allStatuses = await LeadStatus.find().sort({ order: 1 });
 
@@ -662,6 +664,7 @@ exports.fetchKanbanLeadsByStatus = async (req, res) => {
     } else {
       sortObj.updatedAt = 1;
     }
+    sortObj._id = 1;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const leads = await LEAD.find(match)
@@ -1141,7 +1144,7 @@ exports.getUpcomingFollowups = async (req, res) => {
     // 👉 paginated data
     const leads = await LEAD.aggregate([
       ...basePipeline,
-      { $sort: { followupDateTime: 1 } }, // nearest first
+      { $sort: { followupDateTime: 1, _id: 1 } }, // nearest first
       { $skip: skip },
       { $limit: limit },
 
@@ -1301,7 +1304,7 @@ exports.getDueFollowups = async (req, res) => {
     // 👉 paginated data
     const leads = await LEAD.aggregate([
       ...basePipeline,
-      { $sort: { followupDateTime: 1 } }, // most overdue first
+      { $sort: { followupDateTime: 1, _id: 1 } }, // most overdue first
       { $skip: skip },
       { $limit: limit },
 
@@ -1463,6 +1466,7 @@ exports.getWonLeads = async (req, res) => {
     } else {
       sortObj.updatedAt = 1;
     }
+    sortObj._id = 1;
 
     const leads = await LEAD.find(query)
       .populate("leadStatus")
@@ -1575,6 +1579,7 @@ exports.getLostLeads = async (req, res) => {
     } else {
       sortObj.updatedAt = 1;
     }
+    sortObj._id = 1;
 
     const leads = await LEAD.find(query)
       .populate("leadStatus")
@@ -1727,6 +1732,7 @@ exports.exportLeadsToExcel = async (req, res) => {
     } else {
       sortObj.updatedAt = 1;
     }
+    sortObj._id = 1;
 
     const leads = await LEAD.find(query)
       .sort(sortObj)
