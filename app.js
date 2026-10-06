@@ -13,7 +13,9 @@ var logger = require("morgan");
 var indexRouter = require("./routes/indexv1.js");
 
 var app = express();
-app.use(cors());
+app.use(cors({
+  exposedHeaders: ['X-Import-Imported', 'X-Import-Failed', 'Content-Disposition', 'X-Import-Error-Summary']
+}));
 
 // view engine setup
 app.set("views", path.join(__dirname, "views"));

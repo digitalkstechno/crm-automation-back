@@ -41,6 +41,17 @@ exports.createLead = async (req, res) => {
       }));
     }
 
+    // Check for duplicate lead (same contact)
+    if (leadData.contact) {
+      const existingLead = await LEAD.findOne({ contact: leadData.contact });
+      if (existingLead) {
+        return res.status(400).json({
+          status: "Fail",
+          message: "A lead with the same contact number already exists.",
+        });
+      }
+    }
+
     const leadDetails = await LEAD.create(leadData);
 
     await incrementCount({
@@ -2102,6 +2113,14 @@ exports.bulkImportLeads = async (req, res) => {
     const insertErrors = [];
     for (const leadData of successRows) {
       try {
+        if (leadData.contact) {
+          const existingLead = await LEAD.findOne({ contact: leadData.contact });
+          if (existingLead) {
+            insertErrors.push({ ...leadData, errors: "Duplicate lead (same contact number)" });
+            continue;
+          }
+        }
+        
         const lead = await LEAD.create(leadData);
         await incrementCount({ statusId: lead.leadStatus, sourceId: lead.leadSource });
         imported++;
@@ -2190,6 +2209,12 @@ exports.bulkImportLeads = async (req, res) => {
       res.setHeader("Content-Disposition", `attachment; filename="failed_leads_${Date.now()}.xlsx"`);
       res.setHeader("X-Import-Imported", String(imported));
       res.setHeader("X-Import-Failed", String(allFailed.length));
+      
+      // Add error summary header for UI display
+      const errorSummary = allFailed.map(f => `Row ${f.rowNumber}: ${f.errors}`).slice(0, 5).join(" | ");
+      // Need to encode it safely for headers to avoid invalid characters (like newlines)
+      res.setHeader("X-Import-Error-Summary", Buffer.from(errorSummary).toString('base64'));
+
       await failWb.xlsx.write(res);
       return res.end();
     }

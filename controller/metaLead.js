@@ -112,6 +112,15 @@ async function processLead(leadId) {
       isActive: true
     };
 
+    // Check for duplicate contact before saving
+    if (newLeadData.contact) {
+      const existingLead = await LEAD.findOne({ contact: newLeadData.contact });
+      if (existingLead) {
+        console.log(`Duplicate meta lead ignored (same contact): ${newLeadData.contact}`);
+        return;
+      }
+    }
+
     // Save to Database
     const savedLead = await LEAD.create(newLeadData);
     
