@@ -377,6 +377,17 @@ exports.leadUpdate = async (req, res) => {
         }
         return f;
       });
+
+      // Keep nextFollowupDate and nextFollowupTime in sync with latest follow-up entry
+      if (updateData.followUps.length > 0) {
+        const latestFollowUp = updateData.followUps[updateData.followUps.length - 1];
+        if (latestFollowUp && latestFollowUp.date) {
+          updateData.nextFollowupDate = new Date(latestFollowUp.date);
+          if (latestFollowUp.time !== undefined) {
+            updateData.nextFollowupTime = latestFollowUp.time || "";
+          }
+        }
+      }
     }
 
     if (updateData.nextFollowupDate === "") {
