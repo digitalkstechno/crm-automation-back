@@ -29,6 +29,7 @@ let {
   downloadImportTemplate,
   bulkImportLeads,
   bulkAssignLeads,
+  bulkUpdatePriority,
   getAmountBudgetOptions,
 } = require("../controller/lead");
 const authMiddleware = require("../middleware/auth");
@@ -86,6 +87,13 @@ router.put(
   authMiddleware,
   authorize("lead", "assign"),
   bulkAssignLeads
+);
+
+router.put(
+  "/bulk-priority",
+  authMiddleware,
+  authorize("lead", "update"),
+  bulkUpdatePriority
 );
 
 router.get("/:id", authMiddleware, leadReadScope(), fetchLeadById);

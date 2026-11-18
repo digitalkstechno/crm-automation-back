@@ -2266,22 +2266,32 @@ exports.getAmountBudgetOptions = async (req, res) => {
 
 exports.bulkAssignLeads = async (req, res) => {
   try {
-    const { leadIds, staffId } = req.body;
+    const { leadIds, staffId, priorityId } = req.body;
 
     if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
       throw new Error("No leads selected");
     }
 
-    if (!staffId) {
-      throw new Error("No staff member selected");
+    if (!staffId && !priorityId) {
+      throw new Error("No staff member or priority selected");
     }
 
-    const assignedTo = sanitizeObjectId(staffId);
+    const updateFields = {};
+    let assignedTo = null;
+
+    if (staffId) {
+      assignedTo = sanitizeObjectId(staffId);
+      updateFields.assignedTo = assignedTo;
+    }
+
+    if (priorityId) {
+      updateFields.priority = sanitizeObjectId(priorityId);
+    }
 
     // Update leads
     const result = await LEAD.updateMany(
       { _id: { $in: leadIds } },
-      { $set: { assignedTo: assignedTo } }
+      { $set: updateFields }
     );
 
     // Notifications
@@ -2298,7 +2308,40 @@ exports.bulkAssignLeads = async (req, res) => {
 
     return res.status(200).json({
       status: "Success",
-      message: `Successfully assigned ${result.modifiedCount} leads`,
+      message: `Successfully updated ${result.modifiedCount} leads`,
+      data: result,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      status: "Fail",
+      message: error.message,
+    });
+  }
+};
+
+exports.bulkUpdatePriority = async (req, res) => {
+  try {
+    const { leadIds, priorityId } = req.body;
+
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      throw new Error("No leads selected");
+    }
+
+    if (!priorityId) {
+      throw new Error("No priority selected");
+    }
+
+    const priority = sanitizeObjectId(priorityId);
+
+    // Update leads
+    const result = await LEAD.updateMany(
+      { _id: { $in: leadIds } },
+      { $set: { priority: priority } }
+    );
+
+    return res.status(200).json({
+      status: "Success",
+      message: `Successfully updated priority for ${result.modifiedCount} leads`,
       data: result,
     });
   } catch (error) {
