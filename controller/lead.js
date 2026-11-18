@@ -2266,6 +2266,14 @@ exports.getAmountBudgetOptions = async (req, res) => {
 
 exports.bulkAssignLeads = async (req, res) => {
   try {
+    const roleName = req.user?.role?.roleName || (typeof req.user?.role === "string" ? req.user.role : "");
+    if (!roleName.toLowerCase().includes("admin")) {
+      return res.status(403).json({
+        status: "Fail",
+        message: "Access denied. Only admin can perform this action.",
+      });
+    }
+
     const { leadIds, staffId, priorityId } = req.body;
 
     if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
@@ -2321,6 +2329,14 @@ exports.bulkAssignLeads = async (req, res) => {
 
 exports.bulkUpdatePriority = async (req, res) => {
   try {
+    const roleName = req.user?.role?.roleName || (typeof req.user?.role === "string" ? req.user.role : "");
+    if (!roleName.toLowerCase().includes("admin")) {
+      return res.status(403).json({
+        status: "Fail",
+        message: "Access denied. Only admin can perform this action.",
+      });
+    }
+
     const { leadIds, priorityId } = req.body;
 
     if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
